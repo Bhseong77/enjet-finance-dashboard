@@ -1,0 +1,6606 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ENJET 재무 대시보드</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+<style>
+  :root {
+    --primary: #0f4c81;
+    --primary-dark: #0a3960;
+    --primary-light: #1e6bb8;
+    --accent: #00b4d8;
+    --accent-light: #90e0ef;
+    --bg: #f5f7fa;
+    --card-bg: #ffffff;
+    --text: #1f2937;
+    --text-muted: #6b7280;
+    --border: #e5e7eb;
+    --success: #10b981;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+    --grad-1: linear-gradient(90deg, #0f4c81, #00b4d8);
+    --grad-2: linear-gradient(90deg, #10b981, #34d399);
+    --grad-3: linear-gradient(90deg, #ef4444, #f87171);
+    --grad-4: linear-gradient(90deg, #f59e0b, #fbbf24);
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 2px 8px rgba(0,0,0,0.06);
+    --shadow-lg: 0 8px 24px rgba(0,0,0,0.08);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+
+  /* Layout */
+  .app {
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 220px;
+    background: var(--primary);
+    color: #fff;
+    flex-shrink: 0;
+    position: fixed;
+    height: 100vh;
+    left: 0; top: 0;
+    overflow-y: auto;
+  }
+  .sidebar-header {
+    padding: 24px 20px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  .sidebar-logo {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  .sidebar-subtitle {
+    font-size: 11px;
+    color: var(--accent-light);
+    margin-top: 4px;
+    opacity: 0.85;
+  }
+  .sidebar-nav {
+    padding: 16px 0;
+  }
+  .nav-section {
+    padding: 8px 20px 4px;
+    font-size: 10px;
+    color: rgba(255,255,255,0.5);
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    margin-top: 8px;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    padding: 11px 20px;
+    color: rgba(255,255,255,0.85);
+    cursor: pointer;
+    font-size: 13.5px;
+    font-weight: 500;
+    border-left: 3px solid transparent;
+    transition: all 0.18s ease;
+    user-select: none;
+  }
+  .nav-item:hover {
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+  }
+  .nav-item.active {
+    background: rgba(0,180,216,0.12);
+    border-left-color: var(--accent);
+    color: #fff;
+  }
+  .nav-item .icon {
+    margin-right: 10px;
+    font-size: 16px;
+  }
+  .nav-item .badge {
+    margin-left: auto;
+    font-size: 10px;
+    background: var(--accent);
+    color: #fff;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-weight: 600;
+  }
+  .sidebar-footer {
+    position: absolute;
+    bottom: 0;
+    left: 0; right: 0;
+    padding: 14px 20px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    font-size: 11px;
+    color: rgba(255,255,255,0.55);
+  }
+
+  /* Main */
+  .main {
+    flex: 1;
+    margin-left: 220px;
+    display: flex;
+    flex-direction: column;
+  }
+  .topbar {
+    height: 60px;
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .topbar-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--primary);
+  }
+  .topbar-meta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+  }
+  .topbar-meta .data-date {
+    background: var(--bg);
+    padding: 6px 12px;
+    border-radius: 6px;
+    color: var(--text);
+    font-weight: 600;
+  }
+  .live-dot {
+    width: 8px; height: 8px;
+    background: var(--success);
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 6px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.85); }
+  }
+
+  .content {
+    padding: 24px 28px;
+    flex: 1;
+  }
+  .page-header {
+    margin-bottom: 20px;
+  }
+  .page-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--primary);
+    letter-spacing: -0.3px;
+  }
+  .page-subtitle {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  /* KPI Cards */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 22px;
+  }
+  .kpi-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px 16px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .kpi-card:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--grad-1);
+  }
+  .kpi-card.green::before { background: var(--grad-2); }
+  .kpi-card.red::before { background: var(--grad-3); }
+  .kpi-card.amber::before { background: var(--grad-4); }
+  .kpi-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .kpi-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.5px;
+    line-height: 1.2;
+  }
+  .kpi-unit {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 500;
+    margin-left: 3px;
+  }
+  .kpi-delta {
+    font-size: 11.5px;
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
+  }
+  .kpi-delta.up { color: var(--success); }
+  .kpi-delta.down { color: var(--danger); }
+
+  /* Card */
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 18px;
+  }
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .card-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .card-subtitle {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  /* Grid */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-bottom: 18px;
+  }
+  .grid-3 {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 18px;
+    margin-bottom: 18px;
+  }
+
+  /* Table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  thead th {
+    text-align: left;
+    padding: 10px 12px;
+    background: #f9fafb;
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    border-bottom: 1px solid var(--border);
+  }
+  thead th.num { text-align: right; }
+  tbody td {
+    padding: 11px 12px;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  tbody td.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+  }
+  tbody tr:hover {
+    background: #f9fafb;
+  }
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+  .total-row {
+    background: #f3f4f6;
+    font-weight: 700;
+  }
+  .total-row td {
+    color: var(--primary);
+  }
+
+  .pill {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .pill-bank-기업은행 { background: #dbeafe; color: #1e40af; }
+  .pill-bank-국민은행 { background: #fef3c7; color: #92400e; }
+  .pill-bank-농협은행 { background: #d1fae5; color: #065f46; }
+  .pill-bank-신한은행 { background: #e0e7ff; color: #3730a3; }
+
+  .chart-wrap {
+    position: relative;
+    height: 280px;
+    width: 100%;
+  }
+  .chart-wrap.tall { height: 320px; }
+  .chart-wrap.short { height: 220px; }
+
+  /* Tab content visibility */
+  .tab-content { display: none; }
+  .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Empty/coming soon */
+  .coming-soon {
+    text-align: center;
+    padding: 80px 20px;
+    color: var(--text-muted);
+  }
+  .coming-soon .icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.4;
+  }
+  .coming-soon .title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+  .coming-soon .desc {
+    font-size: 13px;
+    max-width: 480px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+
+  .info-banner {
+    background: linear-gradient(135deg, #eff6ff, #f0f9ff);
+    border: 1px solid #bfdbfe;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    color: #1e3a8a;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .num-positive { color: var(--success); font-weight: 600; }
+  .num-negative { color: var(--danger); font-weight: 600; }
+  .num-zero { color: var(--text-muted); }
+
+  @media (max-width: 1100px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  }
+
+  /* Upload UI */
+  .btn-upload, .btn-reset {
+    border: 1px solid var(--primary);
+    background: var(--primary);
+    color: #fff;
+    font-family: 'Pretendard';
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 7px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.18s ease;
+  }
+  .btn-upload:hover { background: var(--primary-light); border-color: var(--primary-light); }
+  .btn-reset {
+    background: transparent;
+    color: var(--text-muted);
+    border-color: var(--border);
+    padding: 7px 9px;
+  }
+  .btn-reset:hover { background: var(--bg); color: var(--danger); border-color: var(--danger); }
+
+  /* Drag overlay */
+  .drag-overlay {
+    position: fixed; inset: 0;
+    background: rgba(15,76,129,0.92);
+    color: #fff;
+    z-index: 1000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    backdrop-filter: blur(4px);
+    transition: opacity 0.2s ease;
+  }
+  .drag-overlay.active { display: flex; }
+  .drag-overlay .icon { font-size: 64px; margin-bottom: 16px; animation: bounce 1s ease-in-out infinite; }
+  .drag-overlay .title { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+  .drag-overlay .desc { font-size: 14px; opacity: 0.8; }
+  @keyframes bounce {
+    0%,100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+
+  /* Toast notification */
+  .toast {
+    position: fixed;
+    bottom: 30px; right: 30px;
+    background: var(--text);
+    color: #fff;
+    padding: 14px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    box-shadow: var(--shadow-lg);
+    z-index: 999;
+    max-width: 360px;
+    animation: slideUp 0.3s ease;
+  }
+  .toast.success { background: var(--success); }
+  .toast.error { background: var(--danger); }
+  .toast.processing { background: var(--accent); }
+  @keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  /* Cached badge */
+  .data-cached {
+    background: #fef3c7;
+    color: #92400e;
+    padding: 3px 9px;
+    border-radius: 12px;
+    font-size: 10.5px;
+    font-weight: 600;
+    margin-left: 8px;
+  }
+
+
+  /* Empty placeholders */
+  .empty-chart, .empty-table {
+    height: 280px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #fafbfc 0%, #f5f7fa 100%);
+    border: 2px dashed #d1d5db;
+    border-radius: 8px;
+    text-align: center;
+    color: var(--text-muted);
+  }
+  .empty-table { height: 200px; }
+  .empty-chart .icon, .empty-table .icon {
+    font-size: 42px;
+    margin-bottom: 12px;
+    opacity: 0.45;
+  }
+  .empty-chart .title, .empty-table .title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #6b7280;
+    margin-bottom: 6px;
+  }
+  .empty-chart .desc, .empty-table .desc {
+    font-size: 12px;
+    line-height: 1.6;
+    max-width: 280px;
+  }
+  .empty-table .desc { max-width: 480px; }
+  .empty-table code {
+    display: inline-block;
+    background: #fff;
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    font-family: monospace;
+    font-size: 11.5px;
+    margin-top: 4px;
+  }
+
+
+  /* Auth UI */
+  .auth-status {
+    display: inline-flex;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .auth-status.logged-in { color: var(--success); }
+  .auth-status.logged-out { color: var(--text-muted); }
+  .auth-status.error { color: var(--danger); }
+
+  .btn-sync {
+    border: 1px solid var(--primary);
+    background: var(--primary);
+    color: #fff;
+    font-family: 'Pretendard';
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 7px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.18s ease;
+  }
+  .btn-sync:hover { background: var(--primary-light); }
+  .btn-sync:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-sync.syncing span:first-child {
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  .btn-upload {
+    padding: 7px 10px;
+    background: transparent;
+    color: var(--primary);
+    border-color: var(--border);
+  }
+  .btn-upload:hover { background: var(--bg); border-color: var(--primary); }
+  .btn-logout {
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    padding: 7px 9px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: 'Pretendard';
+  }
+  .btn-logout:hover { color: var(--danger); border-color: var(--danger); }
+
+  /* Login modal */
+  .login-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.4);
+    z-index: 2000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(8px);
+  }
+  .login-modal.active { display: flex; }
+  .login-box {
+    background: #fff;
+    border-radius: 16px;
+    padding: 40px;
+    width: 420px;
+    max-width: 90vw;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  }
+  .login-logo {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--primary);
+    letter-spacing: -0.5px;
+    margin-bottom: 8px;
+  }
+  .login-subtitle {
+    color: var(--text-muted);
+    font-size: 13px;
+    margin-bottom: 28px;
+  }
+  .login-title {
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+  .login-desc {
+    color: var(--text-muted);
+    font-size: 13px;
+    line-height: 1.6;
+    margin-bottom: 24px;
+  }
+  .btn-login-ms {
+    background: #2f2f2f;
+    color: #fff;
+    border: none;
+    width: 100%;
+    padding: 13px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'Pretendard';
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: background 0.18s;
+  }
+  .btn-login-ms:hover { background: #1f1f1f; }
+  .ms-logo {
+    width: 20px; height: 20px;
+    background-image: linear-gradient(to right, #f25022 50%, #7fba00 50%),
+                      linear-gradient(to right, #00a4ef 50%, #ffb900 50%);
+    background-size: 100% 50%;
+    background-position: top, bottom;
+    background-repeat: no-repeat;
+  }
+  .login-footer {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    font-size: 11.5px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+
+  /* Config warning */
+  .config-warning {
+    background: #fef3c7;
+    border: 1px solid #fbbf24;
+    color: #92400e;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    margin: 20px 28px 0;
+    display: none;
+  }
+  .config-warning.active { display: block; }
+  .config-warning code {
+    background: rgba(0,0,0,0.05);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: monospace;
+  }
+
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">ENJET</div>
+      <div class="sidebar-subtitle">재무 대시보드</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">자금현황</div>
+      <div class="nav-item active" data-tab="daily">
+        <span class="icon">📅</span> 일일 CF
+        <span class="badge">Today</span>
+      </div>
+      <div class="nav-item" data-tab="weekly">
+        <span class="icon">📊</span> 주간 CF
+      </div>
+      <div class="nav-item" data-tab="monthly">
+        <span class="icon">📈</span> 월간 CF
+      </div>
+
+      <div class="nav-section">기간 집계</div>
+      <div class="nav-item" data-tab="quarterly">
+        <span class="icon">💼</span> 분기
+      </div>
+      <div class="nav-item" data-tab="half">
+        <span class="icon">📆</span> 반기
+      </div>
+      <div class="nav-item" data-tab="year">
+        <span class="icon">🏆</span> 기말
+      </div>
+
+      <div class="nav-section">분석</div>
+      <div class="nav-item" data-tab="banks">
+        <span class="icon">🏦</span> 은행별 잔액
+      </div>
+      <div class="nav-item" data-tab="receivable">
+        <span class="icon">📥</span> 수금 현황
+      </div>
+      <div class="nav-item" data-tab="outstanding">
+        <span class="icon">⚠️</span> 미수금
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div>v1.0 · 2026.05</div>
+      <div style="margin-top:3px; opacity:0.7;">© ENJET</div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-title" id="topbar-title">일일 현금흐름</div>
+      <div class="topbar-meta">
+        <span id="auth-status" class="auth-status">
+          <span class="live-dot"></span><span id="auth-label">로그인 확인 중...</span>
+        </span>
+        <span class="data-date" id="data-date">2026-05-07</span>
+        <button class="btn-sync" id="btn-sync" title="SharePoint에서 최신 자금일보 가져오기">
+          <span>🔄</span> SharePoint 동기화
+        </button>
+        <button class="btn-upload" id="btn-upload" title="로컬 파일 업로드 (오프라인 백업)">
+          <span>📤</span>
+        </button>
+        <input type="file" id="file-input" multiple accept=".xlsx,.xls" style="display:none;" />
+        <button class="btn-reset" id="btn-reset" title="초기 데이터로 복원">
+          <span>↺</span>
+        </button>
+        <button class="btn-logout" id="btn-logout" title="로그아웃" style="display:none;">
+          <span>👤</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="content">
+      <!-- placeholder for warning -->
+      <div class="tab-content active" id="tab-daily">
+        <div class="page-header">
+          <div class="page-title">일일 현금흐름 (Cash Flow)</div>
+          <div class="page-subtitle" id="daily-subtitle">2026년 5월 7일 (목) · 영업일</div>
+        </div>
+
+        <div class="kpi-grid" id="daily-kpi"></div>
+
+        <div class="grid-3">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">일별 잔액 추이 (최근 30영업일)</div>
+              <div class="card-subtitle">단위: 억원</div>
+            </div>
+            <div class="chart-wrap tall"><canvas id="chart-daily-balance"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">은행별 비중</div>
+              <div class="card-subtitle">당일 잔액 기준</div>
+            </div>
+            <div class="chart-wrap tall"><canvas id="chart-bank-share"></canvas></div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">일별 입출금 (최근 30영업일)</div>
+              <div class="card-subtitle">단위: 백만원</div>
+            </div>
+            <div class="chart-wrap"><canvas id="chart-daily-flow"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">당일 거래 내역</div>
+              <div class="card-subtitle" id="daily-txn-count">-</div>
+            </div>
+            <div style="max-height:260px; overflow-y:auto;">
+              <table id="daily-txn-table">
+                <thead>
+                  <tr>
+                    <th>은행</th>
+                    <th>계좌구분</th>
+                    <th class="num">입금</th>
+                    <th class="num">출금</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">당일 계좌별 잔액 (24개)</div>
+            <div class="card-subtitle">단위: 원</div>
+          </div>
+          <div style="max-height:480px; overflow-y:auto;">
+            <table id="daily-account-table">
+              <thead>
+                <tr>
+                  <th>은행</th>
+                  <th>계좌구분</th>
+                  <th>계좌번호</th>
+                  <th class="num">전일잔액</th>
+                  <th class="num">입금</th>
+                  <th class="num">출금</th>
+                  <th class="num">당일잔액</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- === WEEKLY TAB === -->
+      <div class="tab-content" id="tab-weekly">
+        <div class="page-header">
+          <div class="page-title">주간 현금흐름 (Weekly CF)</div>
+          <div class="page-subtitle">ISO 주차 기준 (월~금 영업일 집계)</div>
+        </div>
+
+        <div class="kpi-grid" id="weekly-kpi"></div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">주차별 입출금 및 기말잔액 (최근 13주)</div>
+            <div class="card-subtitle">단위: 억원</div>
+          </div>
+          <div class="chart-wrap tall"><canvas id="chart-weekly"></canvas></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">주간 상세</div>
+            <div class="card-subtitle">단위: 원</div>
+          </div>
+          <table id="weekly-table">
+            <thead>
+              <tr>
+                <th>주차</th>
+                <th>기간</th>
+                <th class="num">영업일수</th>
+                <th class="num">입금합계</th>
+                <th class="num">출금합계</th>
+                <th class="num">순증감</th>
+                <th class="num">기말잔액</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- === MONTHLY TAB === -->
+      <div class="tab-content" id="tab-monthly">
+        <div class="page-header">
+          <div class="page-title">월간 현금흐름 (Monthly CF)</div>
+          <div class="page-subtitle">월별 집계 및 추세</div>
+        </div>
+
+        <div class="kpi-grid" id="monthly-kpi"></div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">월별 입출금 및 기말잔액</div>
+            <div class="card-subtitle">단위: 억원</div>
+          </div>
+          <div class="chart-wrap tall"><canvas id="chart-monthly"></canvas></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">월간 상세</div>
+            <div class="card-subtitle">단위: 원</div>
+          </div>
+          <table id="monthly-table">
+            <thead>
+              <tr>
+                <th>월</th>
+                <th class="num">영업일수</th>
+                <th class="num">입금합계</th>
+                <th class="num">출금합계</th>
+                <th class="num">순증감</th>
+                <th class="num">기말잔액</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- === QUARTERLY TAB === -->
+      <div class="tab-content" id="tab-quarterly">
+        <div class="page-header">
+          <div class="page-title">분기 현금흐름 (Quarterly CF)</div>
+          <div class="page-subtitle">분기별 집계 및 비교</div>
+        </div>
+
+        <div class="kpi-grid" id="quarterly-kpi"></div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">분기별 입출금 및 기말잔액</div>
+            <div class="card-subtitle">단위: 억원</div>
+          </div>
+          <div class="chart-wrap tall"><canvas id="chart-quarterly"></canvas></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">분기 상세</div>
+            <div class="card-subtitle">단위: 원</div>
+          </div>
+          <table id="quarterly-table">
+            <thead>
+              <tr>
+                <th>분기</th>
+                <th class="num">영업일수</th>
+                <th class="num">입금합계</th>
+                <th class="num">출금합계</th>
+                <th class="num">순증감</th>
+                <th class="num">기말잔액</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- === HALF TAB === -->
+      <div class="tab-content" id="tab-half">
+        <div class="page-header">
+          <div class="page-title">반기 현금흐름 (Half-Year CF)</div>
+          <div class="page-subtitle">상/하반기 집계</div>
+        </div>
+        <div class="kpi-grid" id="half-kpi"></div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">반기별 입출금 및 기말잔액</div>
+            <div class="card-subtitle">단위: 억원</div>
+          </div>
+          <div class="chart-wrap tall"><canvas id="chart-half"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">반기 상세</div></div>
+          <table id="half-table">
+            <thead><tr><th>반기</th><th class="num">영업일수</th><th class="num">입금합계</th><th class="num">출금합계</th><th class="num">순증감</th><th class="num">기말잔액</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- === YEAR TAB === -->
+      <div class="tab-content" id="tab-year">
+        <div class="page-header">
+          <div class="page-title">기말 현금흐름 (Year-End CF)</div>
+          <div class="page-subtitle">연간 집계 및 YoY 비교</div>
+        </div>
+        <div class="kpi-grid" id="year-kpi"></div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">연도별 입출금 및 기말잔액</div>
+            <div class="card-subtitle">단위: 억원</div>
+          </div>
+          <div class="chart-wrap tall"><canvas id="chart-year"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">연도별 상세</div></div>
+          <table id="year-table">
+            <thead><tr><th>연도</th><th class="num">영업일수</th><th class="num">입금합계</th><th class="num">출금합계</th><th class="num">순증감</th><th class="num">기말잔액</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- === BANK TAB === -->
+      <div class="tab-content" id="tab-banks">
+        <div class="page-header">
+          <div class="page-title">은행별 잔액 현황</div>
+          <div class="page-subtitle">계좌별 상세 및 은행 집중도</div>
+        </div>
+        <div class="grid-3">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">은행별 잔액 (당일)</div>
+              <div class="card-subtitle" id="bank-total">-</div>
+            </div>
+            <div class="chart-wrap tall"><canvas id="chart-banks-bar"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">계좌수</div>
+            </div>
+            <div id="bank-stats" style="padding-top:8px;"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">전체 계좌 일람</div>
+          </div>
+          <table id="banks-table">
+            <thead><tr><th>은행</th><th>계좌구분</th><th>계좌번호</th><th>분류</th><th class="num">잔액</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- === RECEIVABLE TAB === -->
+      <div class="tab-content" id="tab-receivable">
+        <div class="page-header">
+          <div class="page-title">거래처별 수금 현황</div>
+          <div class="page-subtitle">월별 수금액 추이 및 거래처별 비중</div>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">📌 운영 입력 필요</div>
+            <div class="kpi-value" style="font-size:18px;color:#9ca3af;">-</div>
+            <div class="kpi-delta" style="color:#9ca3af;">월 수금 총액</div>
+          </div>
+          <div class="kpi-card green">
+            <div class="kpi-label">📌 운영 입력 필요</div>
+            <div class="kpi-value" style="font-size:18px;color:#9ca3af;">-</div>
+            <div class="kpi-delta" style="color:#9ca3af;">주요 거래처 수</div>
+          </div>
+          <div class="kpi-card amber">
+            <div class="kpi-label">📌 운영 입력 필요</div>
+            <div class="kpi-value" style="font-size:18px;color:#9ca3af;">-</div>
+            <div class="kpi-delta" style="color:#9ca3af;">평균 수금 사이클</div>
+          </div>
+          <div class="kpi-card red">
+            <div class="kpi-label">📌 운영 입력 필요</div>
+            <div class="kpi-value" style="font-size:18px;color:#9ca3af;">-</div>
+            <div class="kpi-delta" style="color:#9ca3af;">연체 거래처</div>
+          </div>
+        </div>
+
+        <div class="info-banner">
+          💡 거래처별 수금 데이터는 자금일보에 없어 별도 입력이 필요합니다. 현재는 <b>자금일보의 입금 트랜잭션</b>(목적계좌별)을 임시로 표시합니다. 거래처 매칭은 별도 양식 도입 후 자동화됩니다.
+        </div>
+
+        <div class="grid-3">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">월별 수금 추이</div>
+              <div class="card-subtitle">최근 12개월</div>
+            </div>
+            <div class="empty-chart">
+              <div class="icon">📊</div>
+              <div class="title">운영 입력 필요</div>
+              <div class="desc">거래처별 수금 데이터가 입력되면<br>월별 추이가 표시됩니다</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">거래처별 비중</div>
+              <div class="card-subtitle">Top 10</div>
+            </div>
+            <div class="empty-chart">
+              <div class="icon">🥧</div>
+              <div class="title">운영 입력 필요</div>
+              <div class="desc">거래처별 수금이 누적되면<br>비중 차트가 표시됩니다</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">📦 임시 데이터: 자금일보 입금 트랜잭션 (계좌별)</div>
+            <div class="card-subtitle" id="deposit-summary">-</div>
+          </div>
+          <div style="max-height:400px; overflow-y:auto;">
+            <table id="deposit-table">
+              <thead><tr><th>일자</th><th>은행</th><th>계좌구분(목적)</th><th>계좌번호</th><th class="num">입금액</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- === OUTSTANDING TAB === -->
+      <div class="tab-content" id="tab-outstanding">
+        <div class="page-header">
+          <div class="page-title">미수금 트래킹</div>
+          <div class="page-subtitle">거래처별 채권 잔액 및 연체 현황</div>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi-card red">
+            <div class="kpi-label">📌 운영 입력 필요</div>
+            <div class="kpi-value" style="font-size:18px;color:#9ca3af;">-</div>
+            <div class="kpi-delta" style="color:#9ca3af;">총 미수금 잔액</div>
+          </div>
+          <div class="kpi-card amber">
+            <div class="kpi-label">📌 운영 입력 필요</div>
+            <div class="kpi-value" style="font-size:18px;color:#9ca3af;">-</div>
+            <div class="kpi-delta" style="color:#9ca3af;">연체 30일 초과</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">📌 운영 입력 필요</div>
+            <div class="kpi-value" style="font-size:18px;color:#9ca3af;">-</div>
+            <div class="kpi-delta" style="color:#9ca3af;">평균 회수기간</div>
+          </div>
+          <div class="kpi-card green">
+            <div class="kpi-label">📌 운영 입력 필요</div>
+            <div class="kpi-value" style="font-size:18px;color:#9ca3af;">-</div>
+            <div class="kpi-delta" style="color:#9ca3af;">이번 달 회수</div>
+          </div>
+        </div>
+
+        <div class="info-banner">
+          ⚠️ 자금일보는 <b>잔액·입출금</b>만 다루며 채권/채무 정보는 포함하지 않습니다. 미수금 트래킹을 위해서는 별도 입력 양식(SharePoint List 또는 Excel)이 필요합니다.
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">연체 일수별 분포 (Aging)</div>
+              <div class="card-subtitle">0-30일 / 31-60일 / 61-90일 / 90일+</div>
+            </div>
+            <div class="empty-chart">
+              <div class="icon">📊</div>
+              <div class="title">운영 입력 필요</div>
+              <div class="desc">미수금 데이터가 입력되면<br>연체일수별 분포가 표시됩니다</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">거래처별 미수금 (Top 10)</div>
+              <div class="card-subtitle">잔여 금액 기준</div>
+            </div>
+            <div class="empty-chart">
+              <div class="icon">🏢</div>
+              <div class="title">운영 입력 필요</div>
+              <div class="desc">거래처별 미수금이 입력되면<br>상위 거래처가 표시됩니다</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">미수금 상세 목록</div>
+            <div class="card-subtitle">데이터 없음</div>
+          </div>
+          <div class="empty-table">
+            <div class="icon">📋</div>
+            <div class="title">운영 입력 필요</div>
+            <div class="desc">
+              아래 컬럼 입력 양식이 도입되면 자동으로 채워집니다:<br><br>
+              <code>거래처명 · 세금계산서일 · 매출금액 · 회수예정일 · 회수일 · 잔여미수금 · 연체일수</code>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+
+<div class="login-modal" id="login-modal">
+  <div class="login-box">
+    <div class="login-logo">ENJET</div>
+    <div class="login-subtitle">재무 대시보드</div>
+    <div class="login-title">접근 권한 인증 필요</div>
+    <div class="login-desc">
+      이 대시보드는 ENJET 임원진 전용입니다.<br>
+      Microsoft 365 계정으로 로그인하여 권한을 확인합니다.
+    </div>
+    <button class="btn-login-ms" id="btn-do-login">
+      <div class="ms-logo"></div>
+      Microsoft 계정으로 로그인
+    </button>
+    <div class="login-footer">
+      🔒 인증된 계정만 SharePoint의 자금일보 파일을 조회할 수 있습니다.<br>
+      대시보드 데이터는 사용자의 브라우저에만 저장됩니다.
+    </div>
+  </div>
+</div>
+
+<div class="config-warning" id="config-warning">
+  ⚠️ <b>설정 필요</b>: Azure AD 앱 정보가 입력되지 않았습니다.
+  HTML 상단의 <code>MSAL_CONFIG</code> 섹션에서
+  <code>clientId</code>와 <code>tenantId</code>를 입력해 주세요.
+  설정 전에도 [📤] 버튼으로 수동 업로드는 가능합니다.
+</div>
+
+<div class="drag-overlay" id="drag-overlay">
+  <div class="icon">📊</div>
+  <div class="title">자금일보 Excel 파일을 놓으세요</div>
+  <div class="desc">.xlsx 파일을 여기에 드롭하면 데이터가 갱신됩니다 (여러 파일 동시 가능)</div>
+</div>
+
+
+<script>
+// =====================================================
+// DATA (자동 생성 - dashboard_data.json 임베드)
+// =====================================================
+const DATA = {
+  "meta": {
+    "latest_date": "2026-05-07",
+    "latest_week": "2026-W19",
+    "latest_month": "2026-05",
+    "latest_quarter": "2026Q2",
+    "data_range": "2024-01-02 ~ 2026-05-07",
+    "total_days": 333
+  },
+  "kpi_today": {
+    "total_balance": 7979174629.0,
+    "total_deposit": 319755260.0,
+    "total_withdrawal": 5172220.0,
+    "net_change": 314583040.0,
+    "account_count": 24
+  },
+  "daily_30": [
+    {
+      "date_str": "2026-03-25",
+      "total_balance": 5796947083.0,
+      "total_deposit": 598400.0,
+      "total_withdrawal": 273088102.0,
+      "net_change": -272489702.0,
+      "weekday": "Wed"
+    },
+    {
+      "date_str": "2026-03-26",
+      "total_balance": 5796942733.0,
+      "total_deposit": 15000000.0,
+      "total_withdrawal": 15004350.0,
+      "net_change": -4350.0,
+      "weekday": "Thu"
+    },
+    {
+      "date_str": "2026-03-27",
+      "total_balance": 5695935901.0,
+      "total_deposit": 350000000.0,
+      "total_withdrawal": 451006832.0,
+      "net_change": -101006832.0,
+      "weekday": "Fri"
+    },
+    {
+      "date_str": "2026-03-30",
+      "total_balance": 5651788662.0,
+      "total_deposit": 2500000.0,
+      "total_withdrawal": 46647239.0,
+      "net_change": -44147239.0,
+      "weekday": "Mon"
+    },
+    {
+      "date_str": "2026-03-31",
+      "total_balance": 8483561021.0,
+      "total_deposit": 15569919865.0,
+      "total_withdrawal": 12738147506.0,
+      "net_change": 2831772359.0,
+      "weekday": "Tue"
+    },
+    {
+      "date_str": "2026-04-01",
+      "total_balance": 8677092461.0,
+      "total_deposit": 194706840.0,
+      "total_withdrawal": 1175400.0,
+      "net_change": 193531440.0,
+      "weekday": "Wed"
+    },
+    {
+      "date_str": "2026-04-02",
+      "total_balance": 9177532546.0,
+      "total_deposit": 500440085.0,
+      "total_withdrawal": 0.0,
+      "net_change": 500440085.0,
+      "weekday": "Thu"
+    },
+    {
+      "date_str": "2026-04-03",
+      "total_balance": 9031409141.0,
+      "total_deposit": 100000000.0,
+      "total_withdrawal": 246123405.0,
+      "net_change": -146123405.0,
+      "weekday": "Fri"
+    },
+    {
+      "date_str": "2026-04-06",
+      "total_balance": 8932927692.0,
+      "total_deposit": 108347431.0,
+      "total_withdrawal": 206828880.0,
+      "net_change": -98481449.0,
+      "weekday": "Mon"
+    },
+    {
+      "date_str": "2026-04-07",
+      "total_balance": 8928010992.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 4916700.0,
+      "net_change": -4916700.0,
+      "weekday": "Tue"
+    },
+    {
+      "date_str": "2026-04-08",
+      "total_balance": 8873832026.0,
+      "total_deposit": 1760000.0,
+      "total_withdrawal": 55938966.0,
+      "net_change": -54178966.0,
+      "weekday": "Wed"
+    },
+    {
+      "date_str": "2026-04-09",
+      "total_balance": 8885448026.0,
+      "total_deposit": 11616000.0,
+      "total_withdrawal": 0.0,
+      "net_change": 11616000.0,
+      "weekday": "Thu"
+    },
+    {
+      "date_str": "2026-04-10",
+      "total_balance": 8921725998.0,
+      "total_deposit": 447291800.0,
+      "total_withdrawal": 411013828.0,
+      "net_change": 36277972.0,
+      "weekday": "Fri"
+    },
+    {
+      "date_str": "2026-04-13",
+      "total_balance": 8922390568.0,
+      "total_deposit": 100699600.0,
+      "total_withdrawal": 100035030.0,
+      "net_change": 664570.0,
+      "weekday": "Mon"
+    },
+    {
+      "date_str": "2026-04-14",
+      "total_balance": 8925658008.0,
+      "total_deposit": 3267440.0,
+      "total_withdrawal": 0.0,
+      "net_change": 3267440.0,
+      "weekday": "Tue"
+    },
+    {
+      "date_str": "2026-04-15",
+      "total_balance": 9034659568.0,
+      "total_deposit": 126628010.0,
+      "total_withdrawal": 17626450.0,
+      "net_change": 109001560.0,
+      "weekday": "Wed"
+    },
+    {
+      "date_str": "2026-04-16",
+      "total_balance": 8849681847.0,
+      "total_deposit": 110923198.0,
+      "total_withdrawal": 295900919.0,
+      "net_change": -184977721.0,
+      "weekday": "Thu"
+    },
+    {
+      "date_str": "2026-04-17",
+      "total_balance": 8867281847.0,
+      "total_deposit": 17600000.0,
+      "total_withdrawal": 0.0,
+      "net_change": 17600000.0,
+      "weekday": "Fri"
+    },
+    {
+      "date_str": "2026-04-20",
+      "total_balance": 8497267441.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 370014406.0,
+      "net_change": -370014406.0,
+      "weekday": "Mon"
+    },
+    {
+      "date_str": "2026-04-21",
+      "total_balance": 8599191171.0,
+      "total_deposit": 104017100.0,
+      "total_withdrawal": 2093370.0,
+      "net_change": 101923730.0,
+      "weekday": "Tue"
+    },
+    {
+      "date_str": "2026-04-22",
+      "total_balance": 8902624851.0,
+      "total_deposit": 318003680.0,
+      "total_withdrawal": 14570000.0,
+      "net_change": 303433680.0,
+      "weekday": "Wed"
+    },
+    {
+      "date_str": "2026-04-23",
+      "total_balance": 8879367824.0,
+      "total_deposit": 400569800.0,
+      "total_withdrawal": 423826827.0,
+      "net_change": -23257027.0,
+      "weekday": "Thu"
+    },
+    {
+      "date_str": "2026-04-24",
+      "total_balance": 8695812466.0,
+      "total_deposit": 154252656.0,
+      "total_withdrawal": 337808014.0,
+      "net_change": -183555358.0,
+      "weekday": "Fri"
+    },
+    {
+      "date_str": "2026-04-27",
+      "total_balance": 8592201897.0,
+      "total_deposit": 16668960.0,
+      "total_withdrawal": 120279529.0,
+      "net_change": -103610569.0,
+      "weekday": "Mon"
+    },
+    {
+      "date_str": "2026-04-28",
+      "total_balance": 8517999531.0,
+      "total_deposit": 173191776.0,
+      "total_withdrawal": 247394142.0,
+      "net_change": -74202366.0,
+      "weekday": "Tue"
+    },
+    {
+      "date_str": "2026-04-29",
+      "total_balance": 8045712702.0,
+      "total_deposit": 525100284.0,
+      "total_withdrawal": 997387113.0,
+      "net_change": -472286829.0,
+      "weekday": "Wed"
+    },
+    {
+      "date_str": "2026-04-30",
+      "total_balance": 8009193706.0,
+      "total_deposit": 100602920.0,
+      "total_withdrawal": 137121916.0,
+      "net_change": -36518996.0,
+      "weekday": "Thu"
+    },
+    {
+      "date_str": "2026-05-04",
+      "total_balance": 7963286061.0,
+      "total_deposit": 200000.0,
+      "total_withdrawal": 46107645.0,
+      "net_change": -45907645.0,
+      "weekday": "Mon"
+    },
+    {
+      "date_str": "2026-05-06",
+      "total_balance": 7664591589.0,
+      "total_deposit": 550000000.0,
+      "total_withdrawal": 848694472.0,
+      "net_change": -298694472.0,
+      "weekday": "Wed"
+    },
+    {
+      "date_str": "2026-05-07",
+      "total_balance": 7979174629.0,
+      "total_deposit": 319755260.0,
+      "total_withdrawal": 5172220.0,
+      "net_change": 314583040.0,
+      "weekday": "Thu"
+    }
+  ],
+  "daily_all": [
+    {
+      "date_str": "2024-01-02",
+      "total_balance": 21938263036.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2024-01-06",
+      "total_balance": 21970438036.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2024-01-07",
+      "total_balance": 21970438036.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2024-01-08",
+      "total_balance": 21970438036.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2024-01-13",
+      "total_balance": 21947101336.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2024-01-20",
+      "total_balance": 21951818136.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2024-01-24",
+      "total_balance": 21747244246.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2024-02-03",
+      "total_balance": 21758396896.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2024-02-04",
+      "total_balance": 21758231896.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2024-02-05",
+      "total_balance": 21758231896.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2024-02-10",
+      "total_balance": 21758231896.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2024-02-17",
+      "total_balance": 21654638746.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2024-02-27",
+      "total_balance": 20953184886.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2024-03-07",
+      "total_balance": 20957452886.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2024-03-13",
+      "total_balance": 20947147236.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2024-07-29",
+      "total_balance": 26514116805.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2024-07-30",
+      "total_balance": 26514116805.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2024-07-31",
+      "total_balance": 26514116805.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2024-12-24",
+      "total_balance": 21747244246.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2024-12-26",
+      "total_balance": 21318666346.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2024-12-27",
+      "total_balance": 21317964996.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2024-12-30",
+      "total_balance": 21317664996.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2024-12-31",
+      "total_balance": 21320769996.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-01-03",
+      "total_balance": 21938098036.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-01-07",
+      "total_balance": 5931514358.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-01-09",
+      "total_balance": 21984243036.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-01-10",
+      "total_balance": 21984243036.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-01-14",
+      "total_balance": 21947101336.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-01-15",
+      "total_balance": 21947101336.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-01-16",
+      "total_balance": 21949398136.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-01-17",
+      "total_balance": 21949398136.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-01-21",
+      "total_balance": 21750076136.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-01-22",
+      "total_balance": 21749366346.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-01-23",
+      "total_balance": 21749366346.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-01-31",
+      "total_balance": 21755494246.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-02-06",
+      "total_balance": 21758231896.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-02-07",
+      "total_balance": 21758231896.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-02-11",
+      "total_balance": 21656088746.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-02-13",
+      "total_balance": 21654088746.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-02-14",
+      "total_balance": 21654088746.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-02-18",
+      "total_balance": 21654638746.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-02-19",
+      "total_balance": 21654638746.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-02-20",
+      "total_balance": 21654638746.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-02-21",
+      "total_balance": 21454896746.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-02-24",
+      "total_balance": 21454186936.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-02-25",
+      "total_balance": 21454186936.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-02-26",
+      "total_balance": 20954189936.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-02-28",
+      "total_balance": 20953184886.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-03-04",
+      "total_balance": 20956627886.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-03-05",
+      "total_balance": 20957452886.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-03-06",
+      "total_balance": 20957452886.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-03-10",
+      "total_balance": 20957452886.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-03-11",
+      "total_balance": 20947147236.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-03-12",
+      "total_balance": 20947147236.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-03-14",
+      "total_balance": 20947147236.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-03-17",
+      "total_balance": 20951359696.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-03-18",
+      "total_balance": 21940259696.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-03-19",
+      "total_balance": 21940259696.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-03-20",
+      "total_balance": 21940259696.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-03-21",
+      "total_balance": 21940017696.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-03-24",
+      "total_balance": 21939351912.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-03-25",
+      "total_balance": 21939651912.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-03-26",
+      "total_balance": 21439354912.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-03-27",
+      "total_balance": 21739350562.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-03-28",
+      "total_balance": 21739350562.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-03-31",
+      "total_balance": 21739900562.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-04-01",
+      "total_balance": 21778394283.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-04-02",
+      "total_balance": 21778229283.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-04-03",
+      "total_balance": 21778229283.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-04-04",
+      "total_balance": 21840819283.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-04-07",
+      "total_balance": 21840819283.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-04-08",
+      "total_balance": 21840819283.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-04-09",
+      "total_balance": 21840819283.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-04-10",
+      "total_balance": 21840819283.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-04-11",
+      "total_balance": 23641644233.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-04-14",
+      "total_balance": 23641644233.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-04-15",
+      "total_balance": 23641644233.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-04-16",
+      "total_balance": 23646763633.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-04-17",
+      "total_balance": 23648762933.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-04-18",
+      "total_balance": 23648762933.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-04-21",
+      "total_balance": 23248762933.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-04-22",
+      "total_balance": 23247723143.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-04-23",
+      "total_balance": 23247723143.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-04-24",
+      "total_balance": 23247723143.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-04-25",
+      "total_balance": 23247723143.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-04-28",
+      "total_balance": 23015831943.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-04-29",
+      "total_balance": 23015827593.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-04-30",
+      "total_balance": 23017411593.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-05-01",
+      "total_balance": 26514116805.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-05-02",
+      "total_balance": 26514116805.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-05-07",
+      "total_balance": 22931265893.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-05-08",
+      "total_balance": 22931265893.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-05-09",
+      "total_balance": 22931265893.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-05-12",
+      "total_balance": 22897735183.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-05-13",
+      "total_balance": 22918283183.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-05-14",
+      "total_balance": 22918283183.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-05-15",
+      "total_balance": 22918283183.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-05-16",
+      "total_balance": 22923893183.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-05-19",
+      "total_balance": 22923893183.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-05-20",
+      "total_balance": 22923893183.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-05-21",
+      "total_balance": 22523651183.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-05-22",
+      "total_balance": 22522359493.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-05-23",
+      "total_balance": 22522359493.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-05-26",
+      "total_balance": 22121358793.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-05-27",
+      "total_balance": 22121357443.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-05-28",
+      "total_balance": 22120757443.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-05-29",
+      "total_balance": 22121357443.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-05-30",
+      "total_balance": 22121357443.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-06-02",
+      "total_balance": 22121357443.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-06-04",
+      "total_balance": 22121192443.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-06-05",
+      "total_balance": 22121192443.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-06-09",
+      "total_balance": 22121192443.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-06-10",
+      "total_balance": 22128298443.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-06-11",
+      "total_balance": 22098778983.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-06-12",
+      "total_balance": 22097778283.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-06-13",
+      "total_balance": 22097778283.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-06-16",
+      "total_balance": 22097924193.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-06-17",
+      "total_balance": 22097924193.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-06-18",
+      "total_balance": 22097924193.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-06-19",
+      "total_balance": 22097924193.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-06-20",
+      "total_balance": 22097767573.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-06-23",
+      "total_balance": 22056151954.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-06-24",
+      "total_balance": 22055003664.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-06-25",
+      "total_balance": 22055003664.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-06-26",
+      "total_balance": 22054706664.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-06-27",
+      "total_balance": 22054702314.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-06-30",
+      "total_balance": 22039702314.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-07-01",
+      "total_balance": 22073083127.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-07-02",
+      "total_balance": 22072918127.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-07-03",
+      "total_balance": 22072918127.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-07-04",
+      "total_balance": 22072918127.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-07-07",
+      "total_balance": 22072918127.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-07-08",
+      "total_balance": 22072918127.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-07-09",
+      "total_balance": 22072918127.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-07-10",
+      "total_balance": 22072918127.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-07-11",
+      "total_balance": 21945549317.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-07-14",
+      "total_balance": 21945549317.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-07-15",
+      "total_balance": 21945549317.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-07-16",
+      "total_balance": 21947529317.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-07-17",
+      "total_balance": 21947529317.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-07-18",
+      "total_balance": 22026179317.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-07-21",
+      "total_balance": 21926224957.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-07-22",
+      "total_balance": 21925234667.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-07-23",
+      "total_balance": 21925234667.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-07-24",
+      "total_balance": 21925234667.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-07-25",
+      "total_balance": 21925234667.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-07-28",
+      "total_balance": 21524937667.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-07-29",
+      "total_balance": 21527933317.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-07-30",
+      "total_balance": 18077872199.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-07-31",
+      "total_balance": 18077872199.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-08-01",
+      "total_balance": 21527933317.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-08-04",
+      "total_balance": 21527768317.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-08-05",
+      "total_balance": 21527768317.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-08-06",
+      "total_balance": 21527768317.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-08-07",
+      "total_balance": 21527768317.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-08-08",
+      "total_balance": 21527768317.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-08-11",
+      "total_balance": 21495683247.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-08-12",
+      "total_balance": 21495683247.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-08-13",
+      "total_balance": 21495683247.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-08-14",
+      "total_balance": 21495683247.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-08-18",
+      "total_balance": 21526563247.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-08-19",
+      "total_balance": 21526563247.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-08-20",
+      "total_balance": 21526563247.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-08-21",
+      "total_balance": 21539493997.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-08-22",
+      "total_balance": 21538745707.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-08-25",
+      "total_balance": 21538745707.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-08-26",
+      "total_balance": 21538448707.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-08-27",
+      "total_balance": 21538444357.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-08-28",
+      "total_balance": 21538444357.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-08-29",
+      "total_balance": 21538444357.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-09-01",
+      "total_balance": 21681444357.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-09-02",
+      "total_balance": 21681279357.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-09-03",
+      "total_balance": 21681279357.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-09-04",
+      "total_balance": 21681279357.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-09-05",
+      "total_balance": 21681279357.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-09-08",
+      "total_balance": 21682665357.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-09-09",
+      "total_balance": 21682665357.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-09-10",
+      "total_balance": 21682565915.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-09-11",
+      "total_balance": 21500562969.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-09-15",
+      "total_balance": 21500577503.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-09-16",
+      "total_balance": 21506377503.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-09-18",
+      "total_balance": 21596302503.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-09-19",
+      "total_balance": 21596302503.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-09-22",
+      "total_balance": 21496577687.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-09-23",
+      "total_balance": 21495587397.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-09-24",
+      "total_balance": 21495412481.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-09-25",
+      "total_balance": 21495412481.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-09-26",
+      "total_balance": 18156486200.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-09-29",
+      "total_balance": 18156481850.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-09-30",
+      "total_balance": 18056481850.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-10-01",
+      "total_balance": 20916676260.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-10-02",
+      "total_balance": 20916510860.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-10-10",
+      "total_balance": 20922714860.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-10-13",
+      "total_balance": 20922714860.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-10-14",
+      "total_balance": 20922714860.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-10-15",
+      "total_balance": 20922714860.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-10-16",
+      "total_balance": 20673378840.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-10-17",
+      "total_balance": 20673378840.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-10-20",
+      "total_balance": 20673378840.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-10-21",
+      "total_balance": 20573136840.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-10-22",
+      "total_balance": 20572388550.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-10-23",
+      "total_balance": 20596388550.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-10-24",
+      "total_balance": 20596388550.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-10-27",
+      "total_balance": 18359134286.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-10-28",
+      "total_balance": 18358832936.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-10-29",
+      "total_balance": 18358832936.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-10-30",
+      "total_balance": 18219232936.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-10-31",
+      "total_balance": 18219231936.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-11-03",
+      "total_balance": 18219231936.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-11-04",
+      "total_balance": 18219066536.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-11-05",
+      "total_balance": 18219066536.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-11-06",
+      "total_balance": 18219066536.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-11-07",
+      "total_balance": 18220958536.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-11-10",
+      "total_balance": 18220958536.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-11-11",
+      "total_balance": 17938640296.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-11-12",
+      "total_balance": 17918393256.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-11-13",
+      "total_balance": 17918393256.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-11-14",
+      "total_balance": 12918393256.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-11-17",
+      "total_balance": 12924853256.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-11-18",
+      "total_balance": 12924853256.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-11-19",
+      "total_balance": 12924853256.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-11-20",
+      "total_balance": 12924853256.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-11-21",
+      "total_balance": 12924611256.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-11-24",
+      "total_balance": 12923823366.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-11-25",
+      "total_balance": 12923648586.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-11-26",
+      "total_balance": 12924526249.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-11-27",
+      "total_balance": 12923521899.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-11-28",
+      "total_balance": 12173521899.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-12-01",
+      "total_balance": 12173521899.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-12-02",
+      "total_balance": 12173356499.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-12-03",
+      "total_balance": 12173356499.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-12-04",
+      "total_balance": 12173356499.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-12-05",
+      "total_balance": 17173356499.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-12-08",
+      "total_balance": 17173356499.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-12-09",
+      "total_balance": 17173356499.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-12-10",
+      "total_balance": 17177096499.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-12-11",
+      "total_balance": 11952358939.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-12-12",
+      "total_balance": 11952358939.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-12-15",
+      "total_balance": 11952478071.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-12-16",
+      "total_balance": 11953908071.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-12-17",
+      "total_balance": 11853908071.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-12-18",
+      "total_balance": 11852243071.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-12-19",
+      "total_balance": 11752243071.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-12-22",
+      "total_balance": 11511517508.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-12-23",
+      "total_balance": 11510527218.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-12-24",
+      "total_balance": 17510527218.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-12-26",
+      "total_balance": 16874161582.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-12-29",
+      "total_balance": 16873860232.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-12-30",
+      "total_balance": 16876360232.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2025-12-31",
+      "total_balance": 16876560232.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-01-02",
+      "total_balance": 6882680258.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-01-05",
+      "total_balance": 6382514858.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-01-06",
+      "total_balance": 6382514858.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-01-08",
+      "total_balance": 5931514358.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-01-09",
+      "total_balance": 7699654358.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-01-12",
+      "total_balance": 7162677178.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-01-13",
+      "total_balance": 7162677178.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-01-14",
+      "total_balance": 7162677178.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-01-15",
+      "total_balance": 7162677178.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-01-16",
+      "total_balance": 7163667178.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-01-19",
+      "total_balance": 7160259218.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-01-20",
+      "total_balance": 7128762744.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-01-21",
+      "total_balance": 7119060744.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-01-22",
+      "total_balance": 7118299254.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-01-23",
+      "total_balance": 7118299254.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-01-26",
+      "total_balance": 6938009254.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-01-27",
+      "total_balance": 6937707904.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-01-28",
+      "total_balance": 6937707904.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-01-29",
+      "total_balance": 6940207904.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-01-30",
+      "total_balance": 11940207904.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-02-02",
+      "total_balance": 6679708176.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-02-03",
+      "total_balance": 6679542776.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-02-04",
+      "total_balance": 6679912706.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-02-05",
+      "total_balance": 6676135186.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-02-06",
+      "total_balance": 6824635186.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-02-07",
+      "total_balance": 6479525701.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-02-10",
+      "total_balance": 6479525701.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-02-11",
+      "total_balance": 6469814441.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-02-12",
+      "total_balance": 6447234975.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-02-13",
+      "total_balance": 6431267065.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-02-19",
+      "total_balance": 6435197065.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-02-20",
+      "total_balance": 6435197065.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-02-23",
+      "total_balance": 6422172933.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-02-24",
+      "total_balance": 6752965936.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-02-25",
+      "total_balance": 6764449936.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-02-26",
+      "total_balance": 5675114398.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-02-27",
+      "total_balance": 5675288448.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-03-03",
+      "total_balance": 5339291189.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-03-04",
+      "total_balance": 5366398579.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-03-05",
+      "total_balance": 5366398579.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-03-06",
+      "total_balance": 5311641418.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-03-09",
+      "total_balance": 5181060152.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-03-10",
+      "total_balance": 5181060152.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-03-11",
+      "total_balance": 5169775382.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-03-12",
+      "total_balance": 6123906492.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-03-13",
+      "total_balance": 6117286639.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-03-16",
+      "total_balance": 6132495581.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-03-17",
+      "total_balance": 6132495581.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-03-18",
+      "total_balance": 6132495581.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-03-19",
+      "total_balance": 6132670890.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "net_change": 0.0
+    },
+    {
+      "date_str": "2026-03-20",
+      "total_balance": 6141579550.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 27693969.0,
+      "net_change": -27693969.0
+    },
+    {
+      "date_str": "2026-03-23",
+      "total_balance": 6067647325.0,
+      "total_deposit": 350000000.0,
+      "total_withdrawal": 425283874.0,
+      "net_change": -75283874.0
+    },
+    {
+      "date_str": "2026-03-24",
+      "total_balance": 6069436785.0,
+      "total_deposit": 3666960.0,
+      "total_withdrawal": 1877500.0,
+      "net_change": 1789460.0
+    },
+    {
+      "date_str": "2026-03-25",
+      "total_balance": 5796947083.0,
+      "total_deposit": 598400.0,
+      "total_withdrawal": 273088102.0,
+      "net_change": -272489702.0
+    },
+    {
+      "date_str": "2026-03-26",
+      "total_balance": 5796942733.0,
+      "total_deposit": 15000000.0,
+      "total_withdrawal": 15004350.0,
+      "net_change": -4350.0
+    },
+    {
+      "date_str": "2026-03-27",
+      "total_balance": 5695935901.0,
+      "total_deposit": 350000000.0,
+      "total_withdrawal": 451006832.0,
+      "net_change": -101006832.0
+    },
+    {
+      "date_str": "2026-03-30",
+      "total_balance": 5651788662.0,
+      "total_deposit": 2500000.0,
+      "total_withdrawal": 46647239.0,
+      "net_change": -44147239.0
+    },
+    {
+      "date_str": "2026-03-31",
+      "total_balance": 8483561021.0,
+      "total_deposit": 15569919865.0,
+      "total_withdrawal": 12738147506.0,
+      "net_change": 2831772359.0
+    },
+    {
+      "date_str": "2026-04-01",
+      "total_balance": 8677092461.0,
+      "total_deposit": 194706840.0,
+      "total_withdrawal": 1175400.0,
+      "net_change": 193531440.0
+    },
+    {
+      "date_str": "2026-04-02",
+      "total_balance": 9177532546.0,
+      "total_deposit": 500440085.0,
+      "total_withdrawal": 0.0,
+      "net_change": 500440085.0
+    },
+    {
+      "date_str": "2026-04-03",
+      "total_balance": 9031409141.0,
+      "total_deposit": 100000000.0,
+      "total_withdrawal": 246123405.0,
+      "net_change": -146123405.0
+    },
+    {
+      "date_str": "2026-04-06",
+      "total_balance": 8932927692.0,
+      "total_deposit": 108347431.0,
+      "total_withdrawal": 206828880.0,
+      "net_change": -98481449.0
+    },
+    {
+      "date_str": "2026-04-07",
+      "total_balance": 8928010992.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 4916700.0,
+      "net_change": -4916700.0
+    },
+    {
+      "date_str": "2026-04-08",
+      "total_balance": 8873832026.0,
+      "total_deposit": 1760000.0,
+      "total_withdrawal": 55938966.0,
+      "net_change": -54178966.0
+    },
+    {
+      "date_str": "2026-04-09",
+      "total_balance": 8885448026.0,
+      "total_deposit": 11616000.0,
+      "total_withdrawal": 0.0,
+      "net_change": 11616000.0
+    },
+    {
+      "date_str": "2026-04-10",
+      "total_balance": 8921725998.0,
+      "total_deposit": 447291800.0,
+      "total_withdrawal": 411013828.0,
+      "net_change": 36277972.0
+    },
+    {
+      "date_str": "2026-04-13",
+      "total_balance": 8922390568.0,
+      "total_deposit": 100699600.0,
+      "total_withdrawal": 100035030.0,
+      "net_change": 664570.0
+    },
+    {
+      "date_str": "2026-04-14",
+      "total_balance": 8925658008.0,
+      "total_deposit": 3267440.0,
+      "total_withdrawal": 0.0,
+      "net_change": 3267440.0
+    },
+    {
+      "date_str": "2026-04-15",
+      "total_balance": 9034659568.0,
+      "total_deposit": 126628010.0,
+      "total_withdrawal": 17626450.0,
+      "net_change": 109001560.0
+    },
+    {
+      "date_str": "2026-04-16",
+      "total_balance": 8849681847.0,
+      "total_deposit": 110923198.0,
+      "total_withdrawal": 295900919.0,
+      "net_change": -184977721.0
+    },
+    {
+      "date_str": "2026-04-17",
+      "total_balance": 8867281847.0,
+      "total_deposit": 17600000.0,
+      "total_withdrawal": 0.0,
+      "net_change": 17600000.0
+    },
+    {
+      "date_str": "2026-04-20",
+      "total_balance": 8497267441.0,
+      "total_deposit": 0.0,
+      "total_withdrawal": 370014406.0,
+      "net_change": -370014406.0
+    },
+    {
+      "date_str": "2026-04-21",
+      "total_balance": 8599191171.0,
+      "total_deposit": 104017100.0,
+      "total_withdrawal": 2093370.0,
+      "net_change": 101923730.0
+    },
+    {
+      "date_str": "2026-04-22",
+      "total_balance": 8902624851.0,
+      "total_deposit": 318003680.0,
+      "total_withdrawal": 14570000.0,
+      "net_change": 303433680.0
+    },
+    {
+      "date_str": "2026-04-23",
+      "total_balance": 8879367824.0,
+      "total_deposit": 400569800.0,
+      "total_withdrawal": 423826827.0,
+      "net_change": -23257027.0
+    },
+    {
+      "date_str": "2026-04-24",
+      "total_balance": 8695812466.0,
+      "total_deposit": 154252656.0,
+      "total_withdrawal": 337808014.0,
+      "net_change": -183555358.0
+    },
+    {
+      "date_str": "2026-04-27",
+      "total_balance": 8592201897.0,
+      "total_deposit": 16668960.0,
+      "total_withdrawal": 120279529.0,
+      "net_change": -103610569.0
+    },
+    {
+      "date_str": "2026-04-28",
+      "total_balance": 8517999531.0,
+      "total_deposit": 173191776.0,
+      "total_withdrawal": 247394142.0,
+      "net_change": -74202366.0
+    },
+    {
+      "date_str": "2026-04-29",
+      "total_balance": 8045712702.0,
+      "total_deposit": 525100284.0,
+      "total_withdrawal": 997387113.0,
+      "net_change": -472286829.0
+    },
+    {
+      "date_str": "2026-04-30",
+      "total_balance": 8009193706.0,
+      "total_deposit": 100602920.0,
+      "total_withdrawal": 137121916.0,
+      "net_change": -36518996.0
+    },
+    {
+      "date_str": "2026-05-04",
+      "total_balance": 7963286061.0,
+      "total_deposit": 200000.0,
+      "total_withdrawal": 46107645.0,
+      "net_change": -45907645.0
+    },
+    {
+      "date_str": "2026-05-06",
+      "total_balance": 7664591589.0,
+      "total_deposit": 550000000.0,
+      "total_withdrawal": 848694472.0,
+      "net_change": -298694472.0
+    },
+    {
+      "date_str": "2026-05-07",
+      "total_balance": 7979174629.0,
+      "total_deposit": 319755260.0,
+      "total_withdrawal": 5172220.0,
+      "net_change": 314583040.0
+    }
+  ],
+  "latest_banks": [
+    {
+      "bank": "기업은행",
+      "balance": 7777026779.0,
+      "accounts": 17
+    },
+    {
+      "bank": "국민은행",
+      "balance": 139382241.0,
+      "accounts": 5
+    },
+    {
+      "bank": "농협은행",
+      "balance": 62745736.0,
+      "accounts": 1
+    },
+    {
+      "bank": "신한은행",
+      "balance": 19873.0,
+      "accounts": 1
+    }
+  ],
+  "latest_accounts": [
+    {
+      "bank": "기업은행",
+      "sub_category": "특정금전신탁(MMT)",
+      "account_no": "614-027233-75-014",
+      "balance": 6851353201.0,
+      "deposit": 0.0,
+      "withdrawal": 0.0
+    },
+    {
+      "bank": "기업은행",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "account_no": "629-051772-01-035",
+      "balance": 603084726.0,
+      "deposit": 319755260.0,
+      "withdrawal": 0.0
+    },
+    {
+      "bank": "기업은행",
+      "sub_category": "주거래",
+      "account_no": "411-077204-04-030",
+      "balance": 256859515.0,
+      "deposit": 0.0,
+      "withdrawal": 0.0
+    },
+    {
+      "bank": "국민은행",
+      "sub_category": "기업자유예금",
+      "account_no": "217037-04-003261",
+      "balance": 138280926.0,
+      "deposit": 0.0,
+      "withdrawal": 0.0
+    },
+    {
+      "bank": "농협은행",
+      "sub_category": "Wm 자사주신탁A호",
+      "account_no": "209-01-416159",
+      "balance": 62745736.0,
+      "deposit": 0.0,
+      "withdrawal": 0.0
+    },
+    {
+      "bank": "기업은행",
+      "sub_category": "부가세매입자납부_금스크랩",
+      "account_no": "629-051772-01-028",
+      "balance": 43692662.0,
+      "deposit": 0.0,
+      "withdrawal": 0.0
+    },
+    {
+      "bank": "기업은행",
+      "sub_category": "솔더레지스트리",
+      "account_no": "629-051772-01-011",
+      "balance": 16553145.0,
+      "deposit": 0.0,
+      "withdrawal": 0.0
+    },
+    {
+      "bank": "기업은행",
+      "sub_category": "리사이클링 주거래",
+      "account_no": "629-051772-01-042",
+      "balance": 3963702.0,
+      "deposit": 0.0,
+      "withdrawal": 5172220.0
+    },
+    {
+      "bank": "국민은행",
+      "sub_category": "평판DP",
+      "account_no": "422037-04-003511",
+      "balance": 655324.0,
+      "deposit": 0.0,
+      "withdrawal": 0.0
+    },
+    {
+      "bank": "국민은행",
+      "sub_category": "첨단전략산업초격차기술개발",
+      "account_no": "820001-00-069479",
+      "balance": 325726.0,
+      "deposit": 0.0,
+      "withdrawal": 0.0
+    },
+    {
+      "bank": "기업은행",
+      "sub_category": "으뜸기업2세부",
+      "account_no": "614-027233-04-071",
+      "balance": 306095.0,
+      "deposit": 0.0,
+      "withdrawal": 0.0
+    },
+    {
+      "bank": "기업은행",
+      "sub_category": "Crepas_SDC 과제",
+      "account_no": "614-027233-01-042",
+      "balance": 282022.0,
+      "deposit": 0.0,
+      "withdrawal": 0.0
+    },
+    {
+      "bank": "기업은행",
+      "sub_category": "무기발광디스플레이기술개발",
+      "account_no": "614-027233-04-106",
+      "balance": 208562.0,
+      "deposit": 0.0,
+      "withdrawal": 0.0
+    },
+    {
+      "bank": "기업은행",
+      "sub_category": "으뜸기업총괄",
+      "account_no": "614-027233-01-050",
+      "balance": 180347.0,
+      "deposit": 0.0,
+      "withdrawal": 0.0
+    },
+    {
+      "bank": "기업은행",
+      "sub_category": "으뜸기업1세부",
+      "account_no": "614-027233-04-063",
+      "balance": 175619.0,
+      "deposit": 0.0,
+      "withdrawal": 0.0
+    },
+    {
+      "bank": "기업은행",
+      "sub_category": "으뜸2세부공동",
+      "account_no": "995-001845-04-011",
+      "balance": 110148.0,
+      "deposit": 0.0,
+      "withdrawal": 0.0
+    },
+    {
+      "bank": "국민은행",
+      "sub_category": "기업자유예금",
+      "account_no": "754237-04-012959",
+      "balance": 99102.0,
+      "deposit": 0.0,
+      "withdrawal": 0.0
+    },
+    {
+      "bank": "기업은행",
+      "sub_category": "강소100",
+      "account_no": "614-027233-04-031",
+      "balance": 85043.0,
+      "deposit": 0.0,
+      "withdrawal": 0.0
+    },
+    {
+      "bank": "기업은행",
+      "sub_category": "시장대응형 과제",
+      "account_no": "614-027233-04-095",
+      "balance": 70317.0,
+      "deposit": 0.0,
+      "withdrawal": 0.0
+    },
+    {
+      "bank": "기업은행",
+      "sub_category": "연구비(Crepas_SDC ) 결제",
+      "account_no": "614-027233-04-088",
+      "balance": 69984.0,
+      "deposit": 0.0,
+      "withdrawal": 0.0
+    },
+    {
+      "bank": "기업은행",
+      "sub_category": "보통예금(기보)",
+      "account_no": "614-027233-01-011",
+      "balance": 31680.0,
+      "deposit": 0.0,
+      "withdrawal": 0.0
+    },
+    {
+      "bank": "국민은행",
+      "sub_category": "소부장 3세부",
+      "account_no": "273001-04-071843",
+      "balance": 21163.0,
+      "deposit": 0.0,
+      "withdrawal": 0.0
+    },
+    {
+      "bank": "신한은행",
+      "sub_category": "보통예금",
+      "account_no": "140-015-567092",
+      "balance": 19873.0,
+      "deposit": 0.0,
+      "withdrawal": 0.0
+    },
+    {
+      "bank": "기업은행",
+      "sub_category": "전문인력양성",
+      "account_no": "614-027233-01-028",
+      "balance": 11.0,
+      "deposit": 0.0,
+      "withdrawal": 0.0
+    }
+  ],
+  "deposits_recent": [
+    {
+      "date": "2026-05-07",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-035",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "deposit": 319755260.0
+    },
+    {
+      "date": "2026-05-06",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-035",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "deposit": 500000000.0
+    },
+    {
+      "date": "2026-05-06",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-028",
+      "sub_category": "부가세매입자납부_금스크랩",
+      "deposit": 50000000.0
+    },
+    {
+      "date": "2026-05-04",
+      "bank": "기업은행",
+      "account_no": "411-077204-04-030",
+      "sub_category": "주거래",
+      "deposit": 200000.0
+    },
+    {
+      "date": "2026-04-30",
+      "bank": "기업은행",
+      "account_no": "411-077204-04-030",
+      "sub_category": "주거래",
+      "deposit": 57049180.0
+    },
+    {
+      "date": "2026-04-30",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-035",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "deposit": 29155500.0
+    },
+    {
+      "date": "2026-04-30",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-042",
+      "sub_category": "리사이클링 주거래",
+      "deposit": 14398240.0
+    },
+    {
+      "date": "2026-04-29",
+      "bank": "기업은행",
+      "account_no": "614-027233-01-042",
+      "sub_category": "Crepas_SDC 과제",
+      "deposit": 250000000.0
+    },
+    {
+      "date": "2026-04-29",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-042",
+      "sub_category": "리사이클링 주거래",
+      "deposit": 250000000.0
+    },
+    {
+      "date": "2026-04-29",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-035",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "deposit": 24121284.0
+    },
+    {
+      "date": "2026-04-29",
+      "bank": "기업은행",
+      "account_no": "411-077204-04-030",
+      "sub_category": "주거래",
+      "deposit": 979000.0
+    },
+    {
+      "date": "2026-04-28",
+      "bank": "기업은행",
+      "account_no": "411-077204-04-030",
+      "sub_category": "주거래",
+      "deposit": 115848800.0
+    },
+    {
+      "date": "2026-04-28",
+      "bank": "기업은행",
+      "account_no": "614-027233-04-063",
+      "sub_category": "으뜸기업1세부",
+      "deposit": 27848800.0
+    },
+    {
+      "date": "2026-04-28",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-035",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "deposit": 23908500.0
+    },
+    {
+      "date": "2026-04-28",
+      "bank": "국민은행",
+      "account_no": "217037-04-003261",
+      "sub_category": "기업자유예금",
+      "deposit": 5000000.0
+    },
+    {
+      "date": "2026-04-28",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-042",
+      "sub_category": "리사이클링 주거래",
+      "deposit": 585676.0
+    },
+    {
+      "date": "2026-04-27",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-035",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "deposit": 16668960.0
+    },
+    {
+      "date": "2026-04-24",
+      "bank": "국민은행",
+      "account_no": "217037-04-003261",
+      "sub_category": "기업자유예금",
+      "deposit": 74866000.0
+    },
+    {
+      "date": "2026-04-24",
+      "bank": "기업은행",
+      "account_no": "411-077204-04-030",
+      "sub_category": "주거래",
+      "deposit": 36373751.0
+    },
+    {
+      "date": "2026-04-24",
+      "bank": "기업은행",
+      "account_no": "614-027233-04-063",
+      "sub_category": "으뜸기업1세부",
+      "deposit": 36262499.0
+    },
+    {
+      "date": "2026-04-24",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-035",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "deposit": 6164730.0
+    },
+    {
+      "date": "2026-04-24",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-042",
+      "sub_category": "리사이클링 주거래",
+      "deposit": 585676.0
+    },
+    {
+      "date": "2026-04-23",
+      "bank": "기업은행",
+      "account_no": "411-077204-04-030",
+      "sub_category": "주거래",
+      "deposit": 400000000.0
+    },
+    {
+      "date": "2026-04-23",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-042",
+      "sub_category": "리사이클링 주거래",
+      "deposit": 569800.0
+    },
+    {
+      "date": "2026-04-22",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-035",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "deposit": 303433680.0
+    },
+    {
+      "date": "2026-04-22",
+      "bank": "기업은행",
+      "account_no": "614-027233-04-063",
+      "sub_category": "으뜸기업1세부",
+      "deposit": 14570000.0
+    },
+    {
+      "date": "2026-04-21",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-035",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "deposit": 104017100.0
+    },
+    {
+      "date": "2026-04-17",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-035",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "deposit": 17600000.0
+    },
+    {
+      "date": "2026-04-16",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-035",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "deposit": 95955200.0
+    },
+    {
+      "date": "2026-04-16",
+      "bank": "기업은행",
+      "account_no": "411-077204-04-030",
+      "sub_category": "주거래",
+      "deposit": 7967999.0
+    },
+    {
+      "date": "2026-04-16",
+      "bank": "기업은행",
+      "account_no": "614-027233-01-050",
+      "sub_category": "으뜸기업총괄",
+      "deposit": 6999999.0
+    },
+    {
+      "date": "2026-04-15",
+      "bank": "기업은행",
+      "account_no": "411-077204-04-030",
+      "sub_category": "주거래",
+      "deposit": 111030010.0
+    },
+    {
+      "date": "2026-04-15",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-035",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "deposit": 15048000.0
+    },
+    {
+      "date": "2026-04-15",
+      "bank": "국민은행",
+      "account_no": "217037-04-003261",
+      "sub_category": "기업자유예금",
+      "deposit": 550000.0
+    },
+    {
+      "date": "2026-04-14",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-042",
+      "sub_category": "리사이클링 주거래",
+      "deposit": 3267440.0
+    },
+    {
+      "date": "2026-04-13",
+      "bank": "기업은행",
+      "account_no": "411-077204-04-030",
+      "sub_category": "주거래",
+      "deposit": 100000000.0
+    },
+    {
+      "date": "2026-04-13",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-035",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "deposit": 699600.0
+    },
+    {
+      "date": "2026-04-10",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-042",
+      "sub_category": "리사이클링 주거래",
+      "deposit": 326945300.0
+    },
+    {
+      "date": "2026-04-10",
+      "bank": "기업은행",
+      "account_no": "411-077204-04-030",
+      "sub_category": "주거래",
+      "deposit": 102990000.0
+    },
+    {
+      "date": "2026-04-10",
+      "bank": "기업은행",
+      "account_no": "614-027233-04-106",
+      "sub_category": "무기발광디스플레이기술개발",
+      "deposit": 9245500.0
+    },
+    {
+      "date": "2026-04-10",
+      "bank": "국민은행",
+      "account_no": "820001-00-069479",
+      "sub_category": "첨단전략산업초격차기술개발",
+      "deposit": 8111000.0
+    },
+    {
+      "date": "2026-04-09",
+      "bank": "국민은행",
+      "account_no": "217037-04-003261",
+      "sub_category": "기업자유예금",
+      "deposit": 11616000.0
+    },
+    {
+      "date": "2026-04-08",
+      "bank": "기업은행",
+      "account_no": "411-077204-04-030",
+      "sub_category": "주거래",
+      "deposit": 1760000.0
+    },
+    {
+      "date": "2026-04-06",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-028",
+      "sub_category": "부가세매입자납부_금스크랩",
+      "deposit": 107698561.0
+    },
+    {
+      "date": "2026-04-06",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-035",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "deposit": 648870.0
+    },
+    {
+      "date": "2026-04-03",
+      "bank": "기업은행",
+      "account_no": "411-077204-04-030",
+      "sub_category": "주거래",
+      "deposit": 100000000.0
+    },
+    {
+      "date": "2026-04-02",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-035",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "deposit": 500422725.0
+    },
+    {
+      "date": "2026-04-02",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-042",
+      "sub_category": "리사이클링 주거래",
+      "deposit": 17360.0
+    },
+    {
+      "date": "2026-04-01",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-035",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "deposit": 172926840.0
+    },
+    {
+      "date": "2026-04-01",
+      "bank": "국민은행",
+      "account_no": "217037-04-003261",
+      "sub_category": "기업자유예금",
+      "deposit": 21780000.0
+    }
+  ],
+  "withdrawals_recent": [
+    {
+      "date": "2026-05-07",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-042",
+      "sub_category": "리사이클링 주거래",
+      "withdrawal": 5172220.0
+    },
+    {
+      "date": "2026-05-06",
+      "bank": "기업은행",
+      "account_no": "614-027233-75-014",
+      "sub_category": "특정금전신탁(MMT)",
+      "withdrawal": 500000000.0
+    },
+    {
+      "date": "2026-05-06",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-035",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "withdrawal": 278470000.0
+    },
+    {
+      "date": "2026-05-06",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-028",
+      "sub_category": "부가세매입자납부_금스크랩",
+      "withdrawal": 65325282.0
+    },
+    {
+      "date": "2026-05-06",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-042",
+      "sub_category": "리사이클링 주거래",
+      "withdrawal": 4899190.0
+    },
+    {
+      "date": "2026-05-04",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-042",
+      "sub_category": "리사이클링 주거래",
+      "withdrawal": 45042245.0
+    },
+    {
+      "date": "2026-05-04",
+      "bank": "기업은행",
+      "account_no": "411-077204-04-030",
+      "sub_category": "주거래",
+      "withdrawal": 900000.0
+    },
+    {
+      "date": "2026-05-04",
+      "bank": "국민은행",
+      "account_no": "217037-04-003261",
+      "sub_category": "기업자유예금",
+      "withdrawal": 165400.0
+    },
+    {
+      "date": "2026-04-30",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-035",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "withdrawal": 86329628.0
+    },
+    {
+      "date": "2026-04-30",
+      "bank": "기업은행",
+      "account_no": "411-077204-04-030",
+      "sub_category": "주거래",
+      "withdrawal": 39844718.0
+    },
+    {
+      "date": "2026-04-30",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-028",
+      "sub_category": "부가세매입자납부_금스크랩",
+      "withdrawal": 10000000.0
+    },
+    {
+      "date": "2026-04-30",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-042",
+      "sub_category": "리사이클링 주거래",
+      "withdrawal": 947570.0
+    },
+    {
+      "date": "2026-04-29",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-035",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "withdrawal": 415371913.0
+    },
+    {
+      "date": "2026-04-29",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-042",
+      "sub_category": "리사이클링 주거래",
+      "withdrawal": 332015200.0
+    },
+    {
+      "date": "2026-04-29",
+      "bank": "기업은행",
+      "account_no": "614-027233-01-042",
+      "sub_category": "Crepas_SDC 과제",
+      "withdrawal": 250000000.0
+    },
+    {
+      "date": "2026-04-28",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-035",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "withdrawal": 200679694.0
+    },
+    {
+      "date": "2026-04-28",
+      "bank": "기업은행",
+      "account_no": "614-027233-04-063",
+      "sub_category": "으뜸기업1세부",
+      "withdrawal": 27848800.0
+    },
+    {
+      "date": "2026-04-28",
+      "bank": "기업은행",
+      "account_no": "411-077204-04-030",
+      "sub_category": "주거래",
+      "withdrawal": 18865648.0
+    },
+    {
+      "date": "2026-04-27",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-035",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "withdrawal": 70381168.0
+    },
+    {
+      "date": "2026-04-27",
+      "bank": "기업은행",
+      "account_no": "411-077204-04-030",
+      "sub_category": "주거래",
+      "withdrawal": 49481481.0
+    },
+    {
+      "date": "2026-04-27",
+      "bank": "국민은행",
+      "account_no": "217037-04-003261",
+      "sub_category": "기업자유예금",
+      "withdrawal": 301350.0
+    },
+    {
+      "date": "2026-04-27",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-042",
+      "sub_category": "리사이클링 주거래",
+      "withdrawal": 115530.0
+    },
+    {
+      "date": "2026-04-24",
+      "bank": "기업은행",
+      "account_no": "411-077204-04-030",
+      "sub_category": "주거래",
+      "withdrawal": 294271778.0
+    },
+    {
+      "date": "2026-04-24",
+      "bank": "기업은행",
+      "account_no": "614-027233-04-063",
+      "sub_category": "으뜸기업1세부",
+      "withdrawal": 36262499.0
+    },
+    {
+      "date": "2026-04-24",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-042",
+      "sub_category": "리사이클링 주거래",
+      "withdrawal": 7273737.0
+    },
+    {
+      "date": "2026-04-23",
+      "bank": "기업은행",
+      "account_no": "614-027233-75-014",
+      "sub_category": "특정금전신탁(MMT)",
+      "withdrawal": 400000000.0
+    },
+    {
+      "date": "2026-04-23",
+      "bank": "기업은행",
+      "account_no": "411-077204-04-030",
+      "sub_category": "주거래",
+      "withdrawal": 23826827.0
+    },
+    {
+      "date": "2026-04-22",
+      "bank": "기업은행",
+      "account_no": "614-027233-04-063",
+      "sub_category": "으뜸기업1세부",
+      "withdrawal": 14570000.0
+    },
+    {
+      "date": "2026-04-21",
+      "bank": "기업은행",
+      "account_no": "411-077204-04-030",
+      "sub_category": "주거래",
+      "withdrawal": 1318680.0
+    },
+    {
+      "date": "2026-04-21",
+      "bank": "국민은행",
+      "account_no": "217037-04-003261",
+      "sub_category": "기업자유예금",
+      "withdrawal": 774690.0
+    },
+    {
+      "date": "2026-04-20",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-042",
+      "sub_category": "리사이클링 주거래",
+      "withdrawal": 224165390.0
+    },
+    {
+      "date": "2026-04-20",
+      "bank": "기업은행",
+      "account_no": "411-077204-04-030",
+      "sub_category": "주거래",
+      "withdrawal": 126748616.0
+    },
+    {
+      "date": "2026-04-20",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-035",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "withdrawal": 18858400.0
+    },
+    {
+      "date": "2026-04-20",
+      "bank": "국민은행",
+      "account_no": "217037-04-003261",
+      "sub_category": "기업자유예금",
+      "withdrawal": 242000.0
+    },
+    {
+      "date": "2026-04-16",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-035",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "withdrawal": 288900920.0
+    },
+    {
+      "date": "2026-04-16",
+      "bank": "기업은행",
+      "account_no": "614-027233-01-050",
+      "sub_category": "으뜸기업총괄",
+      "withdrawal": 6999999.0
+    },
+    {
+      "date": "2026-04-15",
+      "bank": "기업은행",
+      "account_no": "411-077204-04-030",
+      "sub_category": "주거래",
+      "withdrawal": 17296450.0
+    },
+    {
+      "date": "2026-04-15",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-042",
+      "sub_category": "리사이클링 주거래",
+      "withdrawal": 330000.0
+    },
+    {
+      "date": "2026-04-13",
+      "bank": "기업은행",
+      "account_no": "614-027233-75-014",
+      "sub_category": "특정금전신탁(MMT)",
+      "withdrawal": 100000000.0
+    },
+    {
+      "date": "2026-04-13",
+      "bank": "기업은행",
+      "account_no": "411-077204-04-030",
+      "sub_category": "주거래",
+      "withdrawal": 35030.0
+    },
+    {
+      "date": "2026-04-10",
+      "bank": "기업은행",
+      "account_no": "411-077204-04-030",
+      "sub_category": "주거래",
+      "withdrawal": 190671544.0
+    },
+    {
+      "date": "2026-04-10",
+      "bank": "기업은행",
+      "account_no": "614-027233-75-014",
+      "sub_category": "특정금전신탁(MMT)",
+      "withdrawal": 100000000.0
+    },
+    {
+      "date": "2026-04-10",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-035",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "withdrawal": 40738698.0
+    },
+    {
+      "date": "2026-04-10",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-042",
+      "sub_category": "리사이클링 주거래",
+      "withdrawal": 32749556.0
+    },
+    {
+      "date": "2026-04-10",
+      "bank": "국민은행",
+      "account_no": "217037-04-003261",
+      "sub_category": "기업자유예금",
+      "withdrawal": 29497530.0
+    },
+    {
+      "date": "2026-04-10",
+      "bank": "기업은행",
+      "account_no": "614-027233-04-106",
+      "sub_category": "무기발광디스플레이기술개발",
+      "withdrawal": 9245500.0
+    },
+    {
+      "date": "2026-04-10",
+      "bank": "국민은행",
+      "account_no": "820001-00-069479",
+      "sub_category": "첨단전략산업초격차기술개발",
+      "withdrawal": 8111000.0
+    },
+    {
+      "date": "2026-04-08",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-035",
+      "sub_category": "부가세매입자납부_구리등스크랩",
+      "withdrawal": 55361466.0
+    },
+    {
+      "date": "2026-04-08",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-042",
+      "sub_category": "리사이클링 주거래",
+      "withdrawal": 577500.0
+    },
+    {
+      "date": "2026-04-07",
+      "bank": "기업은행",
+      "account_no": "629-051772-01-042",
+      "sub_category": "리사이클링 주거래",
+      "withdrawal": 4916700.0
+    }
+  ],
+  "weekly": [
+    {
+      "iso_week": "2026-W07",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 4,
+      "end_date": "2026-02-13",
+      "start_date": "2026-02-10",
+      "end_balance": 6431267065.0,
+      "net_change": 0.0
+    },
+    {
+      "iso_week": "2026-W08",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 2,
+      "end_date": "2026-02-20",
+      "start_date": "2026-02-19",
+      "end_balance": 6435197065.0,
+      "net_change": 0.0
+    },
+    {
+      "iso_week": "2026-W09",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 5,
+      "end_date": "2026-02-27",
+      "start_date": "2026-02-23",
+      "end_balance": 5675288448.0,
+      "net_change": 0.0
+    },
+    {
+      "iso_week": "2026-W10",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 4,
+      "end_date": "2026-03-06",
+      "start_date": "2026-03-03",
+      "end_balance": 5311641418.0,
+      "net_change": 0.0
+    },
+    {
+      "iso_week": "2026-W11",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 5,
+      "end_date": "2026-03-13",
+      "start_date": "2026-03-09",
+      "end_balance": 6117286639.0,
+      "net_change": 0.0
+    },
+    {
+      "iso_week": "2026-W12",
+      "total_deposit": 0.0,
+      "total_withdrawal": 27693969.0,
+      "days": 5,
+      "end_date": "2026-03-20",
+      "start_date": "2026-03-16",
+      "end_balance": 6141579550.0,
+      "net_change": -27693969.0
+    },
+    {
+      "iso_week": "2026-W13",
+      "total_deposit": 719265360.0,
+      "total_withdrawal": 1166260658.0,
+      "days": 5,
+      "end_date": "2026-03-27",
+      "start_date": "2026-03-23",
+      "end_balance": 5695935901.0,
+      "net_change": -446995298.0
+    },
+    {
+      "iso_week": "2026-W14",
+      "total_deposit": 16367566790.0,
+      "total_withdrawal": 13032093550.0,
+      "days": 5,
+      "end_date": "2026-04-03",
+      "start_date": "2026-03-30",
+      "end_balance": 9031409141.0,
+      "net_change": 3335473240.0
+    },
+    {
+      "iso_week": "2026-W15",
+      "total_deposit": 569015231.0,
+      "total_withdrawal": 678698374.0,
+      "days": 5,
+      "end_date": "2026-04-10",
+      "start_date": "2026-04-06",
+      "end_balance": 8921725998.0,
+      "net_change": -109683143.0
+    },
+    {
+      "iso_week": "2026-W16",
+      "total_deposit": 359118248.0,
+      "total_withdrawal": 413562399.0,
+      "days": 5,
+      "end_date": "2026-04-17",
+      "start_date": "2026-04-13",
+      "end_balance": 8867281847.0,
+      "net_change": -54444151.0
+    },
+    {
+      "iso_week": "2026-W17",
+      "total_deposit": 976843236.0,
+      "total_withdrawal": 1148312617.0,
+      "days": 5,
+      "end_date": "2026-04-24",
+      "start_date": "2026-04-20",
+      "end_balance": 8695812466.0,
+      "net_change": -171469381.0
+    },
+    {
+      "iso_week": "2026-W18",
+      "total_deposit": 815563940.0,
+      "total_withdrawal": 1502182700.0,
+      "days": 4,
+      "end_date": "2026-04-30",
+      "start_date": "2026-04-27",
+      "end_balance": 8009193706.0,
+      "net_change": -686618760.0
+    },
+    {
+      "iso_week": "2026-W19",
+      "total_deposit": 869955260.0,
+      "total_withdrawal": 899974337.0,
+      "days": 3,
+      "end_date": "2026-05-07",
+      "start_date": "2026-05-04",
+      "end_balance": 7979174629.0,
+      "net_change": -30019077.0
+    }
+  ],
+  "monthly": [
+    {
+      "year_month": "2024-01",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 7,
+      "end_balance": 21747244246.0,
+      "net_change": 0.0
+    },
+    {
+      "year_month": "2024-02",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 6,
+      "end_balance": 20953184886.0,
+      "net_change": 0.0
+    },
+    {
+      "year_month": "2024-03",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 2,
+      "end_balance": 20947147236.0,
+      "net_change": 0.0
+    },
+    {
+      "year_month": "2024-07",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 3,
+      "end_balance": 26514116805.0,
+      "net_change": 0.0
+    },
+    {
+      "year_month": "2024-12",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 5,
+      "end_balance": 21320769996.0,
+      "net_change": 0.0
+    },
+    {
+      "year_month": "2025-01",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 12,
+      "end_balance": 21755494246.0,
+      "net_change": 0.0
+    },
+    {
+      "year_month": "2025-02",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 13,
+      "end_balance": 20953184886.0,
+      "net_change": 0.0
+    },
+    {
+      "year_month": "2025-03",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 18,
+      "end_balance": 21739900562.0,
+      "net_change": 0.0
+    },
+    {
+      "year_month": "2025-04",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 22,
+      "end_balance": 23017411593.0,
+      "net_change": 0.0
+    },
+    {
+      "year_month": "2025-05",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 20,
+      "end_balance": 22121357443.0,
+      "net_change": 0.0
+    },
+    {
+      "year_month": "2025-06",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 19,
+      "end_balance": 22039702314.0,
+      "net_change": 0.0
+    },
+    {
+      "year_month": "2025-07",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 23,
+      "end_balance": 18077872199.0,
+      "net_change": 0.0
+    },
+    {
+      "year_month": "2025-08",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 20,
+      "end_balance": 21538444357.0,
+      "net_change": 0.0
+    },
+    {
+      "year_month": "2025-09",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 20,
+      "end_balance": 18056481850.0,
+      "net_change": 0.0
+    },
+    {
+      "year_month": "2025-10",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 18,
+      "end_balance": 18219231936.0,
+      "net_change": 0.0
+    },
+    {
+      "year_month": "2025-11",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 20,
+      "end_balance": 12173521899.0,
+      "net_change": 0.0
+    },
+    {
+      "year_month": "2025-12",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 22,
+      "end_balance": 16876560232.0,
+      "net_change": 0.0
+    },
+    {
+      "year_month": "2026-01",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 20,
+      "end_balance": 11940207904.0,
+      "net_change": 0.0
+    },
+    {
+      "year_month": "2026-02",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 17,
+      "end_balance": 5675288448.0,
+      "net_change": 0.0
+    },
+    {
+      "year_month": "2026-03",
+      "total_deposit": 16291685225.0,
+      "total_withdrawal": 13978749372.0,
+      "days": 21,
+      "end_balance": 8483561021.0,
+      "net_change": 2312935853.0
+    },
+    {
+      "year_month": "2026-04",
+      "total_deposit": 3515687580.0,
+      "total_withdrawal": 3990054895.0,
+      "days": 22,
+      "end_balance": 8009193706.0,
+      "net_change": -474367315.0
+    },
+    {
+      "year_month": "2026-05",
+      "total_deposit": 869955260.0,
+      "total_withdrawal": 899974337.0,
+      "days": 3,
+      "end_balance": 7979174629.0,
+      "net_change": -30019077.0
+    }
+  ],
+  "quarterly": [
+    {
+      "quarter": "2024Q1",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 15,
+      "end_balance": 20947147236.0,
+      "net_change": 0.0
+    },
+    {
+      "quarter": "2024Q3",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 3,
+      "end_balance": 26514116805.0,
+      "net_change": 0.0
+    },
+    {
+      "quarter": "2024Q4",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 5,
+      "end_balance": 21320769996.0,
+      "net_change": 0.0
+    },
+    {
+      "quarter": "2025Q1",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 43,
+      "end_balance": 21739900562.0,
+      "net_change": 0.0
+    },
+    {
+      "quarter": "2025Q2",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 61,
+      "end_balance": 22039702314.0,
+      "net_change": 0.0
+    },
+    {
+      "quarter": "2025Q3",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 63,
+      "end_balance": 18056481850.0,
+      "net_change": 0.0
+    },
+    {
+      "quarter": "2025Q4",
+      "total_deposit": 0.0,
+      "total_withdrawal": 0.0,
+      "days": 60,
+      "end_balance": 16876560232.0,
+      "net_change": 0.0
+    },
+    {
+      "quarter": "2026Q1",
+      "total_deposit": 16291685225.0,
+      "total_withdrawal": 13978749372.0,
+      "days": 58,
+      "end_balance": 8483561021.0,
+      "net_change": 2312935853.0
+    },
+    {
+      "quarter": "2026Q2",
+      "total_deposit": 4385642840.0,
+      "total_withdrawal": 4890029232.0,
+      "days": 25,
+      "end_balance": 7979174629.0,
+      "net_change": -504386392.0
+    }
+  ]
+};
+
+// =====================================================
+// 포맷 헬퍼
+// =====================================================
+const fmt = (n) => {
+  if (n === null || n === undefined || isNaN(n)) return '-';
+  if (n === 0) return '-';
+  return new Intl.NumberFormat('ko-KR').format(Math.round(n));
+};
+const fmtBil = (n) => (n/1e8).toFixed(1); // 억원
+const fmtMil = (n) => (n/1e6).toFixed(1); // 백만원
+const fmtSign = (n) => {
+  if (n > 0) return `+${fmt(n)}`;
+  if (n < 0) return fmt(n);
+  return '-';
+};
+const numClass = (n) => n > 0 ? 'num-positive' : (n < 0 ? 'num-negative' : 'num-zero');
+const escapeHtml = (s) => String(s||'').replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+// 색상 팔레트
+const COLORS = {
+  primary: '#0f4c81',
+  accent: '#00b4d8',
+  success: '#10b981',
+  danger: '#ef4444',
+  warning: '#f59e0b',
+  banks: { '기업은행':'#1e6bb8', '국민은행':'#f59e0b', '농협은행':'#10b981', '신한은행':'#6366f1' }
+};
+
+Chart.defaults.font.family = 'Pretendard, sans-serif';
+Chart.defaults.font.size = 11.5;
+Chart.defaults.color = '#6b7280';
+
+// =====================================================
+// TAB 전환
+// =====================================================
+let activeTab = 'daily';
+let charts = {};
+
+document.querySelectorAll('.nav-item').forEach(el => {
+  el.addEventListener('click', () => {
+    const tab = el.dataset.tab;
+    if (!tab || tab === activeTab) return;
+    document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active'));
+    el.classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(x => x.classList.remove('active'));
+    document.getElementById('tab-' + tab).classList.add('active');
+    activeTab = tab;
+    document.getElementById('topbar-title').textContent = el.textContent.trim().replace(/Today$/,'').trim();
+    if (renderers[tab]) renderers[tab]();
+  });
+});
+
+// =====================================================
+// 렌더러
+// =====================================================
+const renderers = {};
+
+// --- KPI 카드 헬퍼 ---
+function kpiCard(label, value, unit, delta, deltaClass, variant) {
+  return `<div class="kpi-card ${variant||''}">
+    <div class="kpi-label">${label}</div>
+    <div class="kpi-value">${value}<span class="kpi-unit">${unit||''}</span></div>
+    ${delta ? `<div class="kpi-delta ${deltaClass||''}">${delta}</div>` : ''}
+  </div>`;
+}
+
+// --- 일일 (Daily) ---
+renderers.daily = () => {
+  const k = DATA.kpi_today;
+  document.getElementById('data-date').textContent = DATA.meta.latest_date;
+  document.getElementById('daily-subtitle').textContent =
+    `${DATA.meta.latest_date} · 계좌 ${k.account_count}개 · 데이터 기간 ${DATA.meta.data_range}`;
+
+  // KPI
+  document.getElementById('daily-kpi').innerHTML = [
+    kpiCard('당일 총잔액', fmtBil(k.total_balance), '억원', `${fmt(k.total_balance)}원`, '', ''),
+    kpiCard('당일 입금', fmt(k.total_deposit), '원', null, '', 'green'),
+    kpiCard('당일 출금', fmt(k.total_withdrawal), '원', null, '', 'red'),
+    kpiCard('순증감', fmtSign(k.net_change), '원',
+      k.net_change >= 0 ? '↑ 자금 유입' : '↓ 자금 유출',
+      k.net_change >= 0 ? 'up' : 'down', 'amber'),
+  ].join('');
+
+  // 잔액 추이 차트
+  drawDailyBalance();
+  drawBankShare();
+  drawDailyFlow();
+
+  // 당일 거래 내역
+  const txns = DATA.latest_accounts.filter(a => a.deposit > 0 || a.withdrawal > 0);
+  document.getElementById('daily-txn-count').textContent = `${txns.length}건`;
+  const tbody = document.querySelector('#daily-txn-table tbody');
+  tbody.innerHTML = txns.length ? txns.map(t => `
+    <tr>
+      <td><span class="pill pill-bank-${t.bank}">${t.bank}</span></td>
+      <td>${escapeHtml(t.sub_category)}</td>
+      <td class="num ${t.deposit > 0 ? 'num-positive' : ''}">${t.deposit > 0 ? fmt(t.deposit) : '-'}</td>
+      <td class="num ${t.withdrawal > 0 ? 'num-negative' : ''}">${t.withdrawal > 0 ? fmt(t.withdrawal) : '-'}</td>
+    </tr>`).join('') : '<tr><td colspan="4" style="text-align:center;color:#9ca3af;padding:24px;">당일 거래 없음</td></tr>';
+
+  // 당일 계좌별
+  const accBody = document.querySelector('#daily-account-table tbody');
+  const sumP = DATA.latest_accounts.reduce((a,b)=>a+b.prev_balance,0);
+  const sumD = DATA.latest_accounts.reduce((a,b)=>a+b.deposit,0);
+  const sumW = DATA.latest_accounts.reduce((a,b)=>a+b.withdrawal,0);
+  const sumB = DATA.latest_accounts.reduce((a,b)=>a+b.balance,0);
+  accBody.innerHTML = DATA.latest_accounts.map(a => `
+    <tr>
+      <td><span class="pill pill-bank-${a.bank}">${a.bank}</span></td>
+      <td>${escapeHtml(a.sub_category)}</td>
+      <td style="font-family:monospace;font-size:12px;color:#6b7280;">${escapeHtml(a.account_no)}</td>
+      <td class="num">${fmt(a.prev_balance||0)}</td>
+      <td class="num ${a.deposit > 0 ? 'num-positive' : 'num-zero'}">${a.deposit > 0 ? fmt(a.deposit) : '-'}</td>
+      <td class="num ${a.withdrawal > 0 ? 'num-negative' : 'num-zero'}">${a.withdrawal > 0 ? fmt(a.withdrawal) : '-'}</td>
+      <td class="num"><b>${fmt(a.balance)}</b></td>
+    </tr>`).join('') + `
+    <tr class="total-row">
+      <td colspan="3">합계 (원화)</td>
+      <td class="num">${fmt(sumP)}</td>
+      <td class="num">${fmt(sumD)}</td>
+      <td class="num">${fmt(sumW)}</td>
+      <td class="num">${fmt(sumB)}</td>
+    </tr>`;
+};
+
+function drawDailyBalance() {
+  const ctx = document.getElementById('chart-daily-balance');
+  if (charts.daily_balance) charts.daily_balance.destroy();
+  const d = DATA.daily_30;
+  charts.daily_balance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: d.map(x => x.date_str.slice(5)),
+      datasets: [{
+        label: '총잔액 (억)',
+        data: d.map(x => +(x.total_balance/1e8).toFixed(2)),
+        borderColor: COLORS.primary,
+        backgroundColor: 'rgba(15,76,129,0.08)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 2,
+        pointHoverRadius: 5,
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: {
+        label: c => `${c.raw} 억원`
+      }}},
+      scales: {
+        y: { beginAtZero: false, grid: { color: '#f3f4f6' }, ticks: { callback: v => v + '억' } },
+        x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } }
+      }
+    }
+  });
+}
+
+function drawBankShare() {
+  const ctx = document.getElementById('chart-bank-share');
+  if (charts.bank_share) charts.bank_share.destroy();
+  const d = DATA.latest_banks;
+  charts.bank_share = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: d.map(x => x.bank),
+      datasets: [{
+        data: d.map(x => x.balance),
+        backgroundColor: d.map(x => COLORS.banks[x.bank] || '#9ca3af'),
+        borderWidth: 2,
+        borderColor: '#fff',
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { padding: 14, boxWidth: 12 } },
+        tooltip: { callbacks: { label: c => {
+          const total = c.dataset.data.reduce((a,b)=>a+b,0);
+          const pct = (c.raw/total*100).toFixed(1);
+          return ` ${c.label}: ${fmt(c.raw)}원 (${pct}%)`;
+        }}}
+      },
+      cutout: '60%'
+    }
+  });
+}
+
+function drawDailyFlow() {
+  const ctx = document.getElementById('chart-daily-flow');
+  if (charts.daily_flow) charts.daily_flow.destroy();
+  const d = DATA.daily_30;
+  charts.daily_flow = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: d.map(x => x.date_str.slice(5)),
+      datasets: [
+        { label: '입금', data: d.map(x => +(x.total_deposit/1e6).toFixed(1)), backgroundColor: COLORS.success },
+        { label: '출금', data: d.map(x => -+(x.total_withdrawal/1e6).toFixed(1)), backgroundColor: COLORS.danger },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top', align: 'end' }, tooltip: {
+        callbacks: { label: c => `${c.dataset.label}: ${Math.abs(c.raw)} 백만원` }
+      }},
+      scales: {
+        y: { stacked: false, ticks: { callback: v => v + 'M' }, grid: { color: '#f3f4f6' } },
+        x: { stacked: false, grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } }
+      }
+    }
+  });
+}
+
+// --- 주간 (Weekly) ---
+renderers.weekly = () => {
+  const w = DATA.weekly;
+  const last = w[w.length-1];
+  const prev = w[w.length-2];
+  document.getElementById('weekly-kpi').innerHTML = [
+    kpiCard('금주 기말잔액', fmtBil(last.end_balance), '억원', last.iso_week, '', ''),
+    kpiCard('금주 입금', fmt(last.total_deposit), '원', null, '', 'green'),
+    kpiCard('금주 출금', fmt(last.total_withdrawal), '원', null, '', 'red'),
+    kpiCard('순증감', fmtSign(last.net_change), '원',
+      prev ? `전주 대비 ${fmtSign(last.end_balance-prev.end_balance)}` : '',
+      last.net_change >= 0 ? 'up' : 'down', 'amber'),
+  ].join('');
+
+  // Chart
+  const ctx = document.getElementById('chart-weekly');
+  if (charts.weekly) charts.weekly.destroy();
+  charts.weekly = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: w.map(x => x.iso_week.replace('2026-','').replace('2025-','')),
+      datasets: [
+        { type:'bar', label: '입금(억)', data: w.map(x => +(x.total_deposit/1e8).toFixed(2)), backgroundColor: COLORS.success, yAxisID: 'y' },
+        { type:'bar', label: '출금(억)', data: w.map(x => -+(x.total_withdrawal/1e8).toFixed(2)), backgroundColor: COLORS.danger, yAxisID: 'y' },
+        { type:'line', label: '기말잔액(억)', data: w.map(x => +(x.end_balance/1e8).toFixed(2)), borderColor: COLORS.primary, backgroundColor: 'transparent', tension:0.3, yAxisID: 'y1', borderWidth:2.5, pointRadius:3 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top' }, tooltip: { callbacks: { label: c => `${c.dataset.label}: ${Math.abs(c.raw)}억` }}},
+      scales: {
+        y: { stacked: false, position: 'left', ticks: { callback: v => v + '억' } },
+        y1: { position: 'right', grid: { display: false }, ticks: { callback: v => v + '억' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+
+  // Table
+  const tbody = document.querySelector('#weekly-table tbody');
+  tbody.innerHTML = [...w].reverse().map(r => `
+    <tr>
+      <td><b>${r.iso_week}</b></td>
+      <td style="color:#6b7280;">${r.start_date} ~ ${r.end_date}</td>
+      <td class="num">${r.days}</td>
+      <td class="num num-positive">${fmt(r.total_deposit)}</td>
+      <td class="num num-negative">${fmt(r.total_withdrawal)}</td>
+      <td class="num ${numClass(r.net_change)}">${fmtSign(r.net_change)}</td>
+      <td class="num"><b>${fmt(r.end_balance)}</b></td>
+    </tr>`).join('');
+};
+
+// --- 월간 ---
+renderers.monthly = () => {
+  const m = DATA.monthly;
+  const last = m[m.length-1];
+  const prev = m[m.length-2];
+  document.getElementById('monthly-kpi').innerHTML = [
+    kpiCard('이번 달 기말잔액', fmtBil(last.end_balance), '억원', last.year_month, '', ''),
+    kpiCard('이번 달 입금', fmt(last.total_deposit), '원', null, '', 'green'),
+    kpiCard('이번 달 출금', fmt(last.total_withdrawal), '원', null, '', 'red'),
+    kpiCard('순증감', fmtSign(last.net_change), '원',
+      prev ? `전월 대비 ${fmtSign(last.end_balance - prev.end_balance)}` : '',
+      last.net_change >= 0 ? 'up' : 'down', 'amber'),
+  ].join('');
+
+  const ctx = document.getElementById('chart-monthly');
+  if (charts.monthly) charts.monthly.destroy();
+  charts.monthly = new Chart(ctx, {
+    data: {
+      labels: m.map(x => x.year_month),
+      datasets: [
+        { type:'bar', label: '입금(억)', data: m.map(x => +(x.total_deposit/1e8).toFixed(2)), backgroundColor: COLORS.success, yAxisID:'y' },
+        { type:'bar', label: '출금(억)', data: m.map(x => -+(x.total_withdrawal/1e8).toFixed(2)), backgroundColor: COLORS.danger, yAxisID:'y' },
+        { type:'line', label: '기말잔액(억)', data: m.map(x => +(x.end_balance/1e8).toFixed(2)), borderColor: COLORS.primary, tension:0.3, yAxisID:'y1', borderWidth:2.5, pointRadius:3, fill:false },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top' }},
+      scales: {
+        y: { position: 'left', ticks: { callback: v => v + '억' } },
+        y1: { position: 'right', grid: { display: false }, ticks: { callback: v => v + '억' } },
+        x: { grid: { display: false }, ticks: { maxRotation: 45 } }
+      }
+    }
+  });
+
+  const tbody = document.querySelector('#monthly-table tbody');
+  tbody.innerHTML = [...m].reverse().map(r => `
+    <tr>
+      <td><b>${r.year_month}</b></td>
+      <td class="num">${r.days}</td>
+      <td class="num num-positive">${fmt(r.total_deposit)}</td>
+      <td class="num num-negative">${fmt(r.total_withdrawal)}</td>
+      <td class="num ${numClass(r.net_change)}">${fmtSign(r.net_change)}</td>
+      <td class="num"><b>${fmt(r.end_balance)}</b></td>
+    </tr>`).join('');
+};
+
+// --- 분기 ---
+renderers.quarterly = () => {
+  const q = DATA.quarterly;
+  const last = q[q.length-1];
+  const prev = q[q.length-2];
+  document.getElementById('quarterly-kpi').innerHTML = [
+    kpiCard('이번 분기 기말잔액', fmtBil(last.end_balance), '억원', last.quarter, '', ''),
+    kpiCard('이번 분기 입금', fmt(last.total_deposit), '원', null, '', 'green'),
+    kpiCard('이번 분기 출금', fmt(last.total_withdrawal), '원', null, '', 'red'),
+    kpiCard('순증감', fmtSign(last.net_change), '원',
+      prev ? `전분기 대비 ${fmtSign(last.end_balance - prev.end_balance)}` : '',
+      last.net_change >= 0 ? 'up' : 'down', 'amber'),
+  ].join('');
+
+  const ctx = document.getElementById('chart-quarterly');
+  if (charts.quarterly) charts.quarterly.destroy();
+  charts.quarterly = new Chart(ctx, {
+    data: {
+      labels: q.map(x => x.quarter),
+      datasets: [
+        { type:'bar', label: '입금(억)', data: q.map(x => +(x.total_deposit/1e8).toFixed(2)), backgroundColor: COLORS.success, yAxisID:'y' },
+        { type:'bar', label: '출금(억)', data: q.map(x => -+(x.total_withdrawal/1e8).toFixed(2)), backgroundColor: COLORS.danger, yAxisID:'y' },
+        { type:'line', label: '기말잔액(억)', data: q.map(x => +(x.end_balance/1e8).toFixed(2)), borderColor: COLORS.primary, tension:0.3, yAxisID:'y1', borderWidth:2.5, pointRadius:4, fill:false },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top' }},
+      scales: {
+        y: { position:'left', ticks: { callback: v => v + '억' } },
+        y1: { position:'right', grid: { display: false }, ticks: { callback: v => v + '억' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+
+  const tbody = document.querySelector('#quarterly-table tbody');
+  tbody.innerHTML = [...q].reverse().map(r => `
+    <tr>
+      <td><b>${r.quarter}</b></td>
+      <td class="num">${r.days}</td>
+      <td class="num num-positive">${fmt(r.total_deposit)}</td>
+      <td class="num num-negative">${fmt(r.total_withdrawal)}</td>
+      <td class="num ${numClass(r.net_change)}">${fmtSign(r.net_change)}</td>
+      <td class="num"><b>${fmt(r.end_balance)}</b></td>
+    </tr>`).join('');
+};
+
+// --- 반기 ---
+renderers.half = () => {
+  // 월간 데이터에서 반기 집계
+  const m = DATA.monthly;
+  const halves = {};
+  m.forEach(r => {
+    const [y, mo] = r.year_month.split('-');
+    const h = +mo <= 6 ? `${y}-H1` : `${y}-H2`;
+    if (!halves[h]) halves[h] = { half: h, total_deposit:0, total_withdrawal:0, days:0, end_balance: 0, _last_month: '' };
+    halves[h].total_deposit += r.total_deposit;
+    halves[h].total_withdrawal += r.total_withdrawal;
+    halves[h].days += r.days;
+    if (r.year_month > halves[h]._last_month) {
+      halves[h]._last_month = r.year_month;
+      halves[h].end_balance = r.end_balance;
+    }
+  });
+  const arr = Object.values(halves).sort((a,b) => a.half.localeCompare(b.half));
+  arr.forEach(r => r.net_change = r.total_deposit - r.total_withdrawal);
+  const last = arr[arr.length-1];
+  const prev = arr[arr.length-2];
+
+  document.getElementById('half-kpi').innerHTML = [
+    kpiCard('현재 반기 기말잔액', fmtBil(last.end_balance), '억원', last.half, '', ''),
+    kpiCard('반기 입금', fmt(last.total_deposit), '원', null, '', 'green'),
+    kpiCard('반기 출금', fmt(last.total_withdrawal), '원', null, '', 'red'),
+    kpiCard('순증감', fmtSign(last.net_change), '원',
+      prev ? `전반기 대비 ${fmtSign(last.end_balance - prev.end_balance)}` : '',
+      last.net_change >= 0 ? 'up' : 'down', 'amber'),
+  ].join('');
+
+  const ctx = document.getElementById('chart-half');
+  if (charts.half) charts.half.destroy();
+  charts.half = new Chart(ctx, {
+    data: {
+      labels: arr.map(x => x.half),
+      datasets: [
+        { type:'bar', label: '입금(억)', data: arr.map(x => +(x.total_deposit/1e8).toFixed(2)), backgroundColor: COLORS.success, yAxisID:'y' },
+        { type:'bar', label: '출금(억)', data: arr.map(x => -+(x.total_withdrawal/1e8).toFixed(2)), backgroundColor: COLORS.danger, yAxisID:'y' },
+        { type:'line', label: '기말잔액(억)', data: arr.map(x => +(x.end_balance/1e8).toFixed(2)), borderColor: COLORS.primary, tension:0.3, yAxisID:'y1', borderWidth:2.5, pointRadius:5, fill:false },
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position:'top' }}, scales: { y:{position:'left',ticks:{callback:v=>v+'억'}}, y1:{position:'right',grid:{display:false},ticks:{callback:v=>v+'억'}}, x:{grid:{display:false}}}}
+  });
+
+  document.querySelector('#half-table tbody').innerHTML = [...arr].reverse().map(r => `
+    <tr><td><b>${r.half}</b></td><td class="num">${r.days}</td><td class="num num-positive">${fmt(r.total_deposit)}</td><td class="num num-negative">${fmt(r.total_withdrawal)}</td><td class="num ${numClass(r.net_change)}">${fmtSign(r.net_change)}</td><td class="num"><b>${fmt(r.end_balance)}</b></td></tr>`).join('');
+};
+
+// --- 연도 ---
+renderers.year = () => {
+  const m = DATA.monthly;
+  const years = {};
+  m.forEach(r => {
+    const y = r.year_month.split('-')[0];
+    if (!years[y]) years[y] = { year: y, total_deposit:0, total_withdrawal:0, days:0, end_balance:0, _last_month:'' };
+    years[y].total_deposit += r.total_deposit;
+    years[y].total_withdrawal += r.total_withdrawal;
+    years[y].days += r.days;
+    if (r.year_month > years[y]._last_month) {
+      years[y]._last_month = r.year_month;
+      years[y].end_balance = r.end_balance;
+    }
+  });
+  const arr = Object.values(years).sort((a,b) => a.year.localeCompare(b.year));
+  arr.forEach(r => r.net_change = r.total_deposit - r.total_withdrawal);
+  const last = arr[arr.length-1];
+  const prev = arr[arr.length-2];
+
+  document.getElementById('year-kpi').innerHTML = [
+    kpiCard('현재 연도 기말잔액', fmtBil(last.end_balance), '억원', last.year, '', ''),
+    kpiCard('연간 입금', fmt(last.total_deposit), '원', null, '', 'green'),
+    kpiCard('연간 출금', fmt(last.total_withdrawal), '원', null, '', 'red'),
+    kpiCard('순증감', fmtSign(last.net_change), '원',
+      prev ? `YoY ${fmtSign(last.end_balance - prev.end_balance)}` : '',
+      last.net_change >= 0 ? 'up' : 'down', 'amber'),
+  ].join('');
+
+  const ctx = document.getElementById('chart-year');
+  if (charts.year) charts.year.destroy();
+  charts.year = new Chart(ctx, {
+    data: {
+      labels: arr.map(x => x.year),
+      datasets: [
+        { type:'bar', label: '입금(억)', data: arr.map(x => +(x.total_deposit/1e8).toFixed(2)), backgroundColor: COLORS.success, yAxisID:'y' },
+        { type:'bar', label: '출금(억)', data: arr.map(x => -+(x.total_withdrawal/1e8).toFixed(2)), backgroundColor: COLORS.danger, yAxisID:'y' },
+        { type:'line', label: '기말잔액(억)', data: arr.map(x => +(x.end_balance/1e8).toFixed(2)), borderColor: COLORS.primary, tension:0.3, yAxisID:'y1', borderWidth:2.5, pointRadius:5, fill:false },
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position:'top' }}, scales: { y:{position:'left',ticks:{callback:v=>v+'억'}}, y1:{position:'right',grid:{display:false},ticks:{callback:v=>v+'억'}}, x:{grid:{display:false}}}}
+  });
+
+  document.querySelector('#year-table tbody').innerHTML = [...arr].reverse().map(r => `
+    <tr><td><b>${r.year}</b></td><td class="num">${r.days}</td><td class="num num-positive">${fmt(r.total_deposit)}</td><td class="num num-negative">${fmt(r.total_withdrawal)}</td><td class="num ${numClass(r.net_change)}">${fmtSign(r.net_change)}</td><td class="num"><b>${fmt(r.end_balance)}</b></td></tr>`).join('');
+};
+
+// --- 은행별 ---
+renderers.banks = () => {
+  const b = DATA.latest_banks;
+  const total = b.reduce((a,c)=>a+c.balance,0);
+  document.getElementById('bank-total').textContent = `합계 ${fmtBil(total)}억원 · ${DATA.meta.latest_date} 기준`;
+
+  const ctx = document.getElementById('chart-banks-bar');
+  if (charts.banks_bar) charts.banks_bar.destroy();
+  charts.banks_bar = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: b.map(x => x.bank),
+      datasets: [{
+        label: '잔액',
+        data: b.map(x => +(x.balance/1e8).toFixed(2)),
+        backgroundColor: b.map(x => COLORS.banks[x.bank] || '#9ca3af'),
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.raw}억원` }}},
+      scales: { x: { ticks: { callback: v => v + '억' }}, y: { grid: { display: false } } }
+    }
+  });
+
+  document.getElementById('bank-stats').innerHTML = b.map(x => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 4px;border-bottom:1px solid #f3f4f6;">
+      <div>
+        <div style="font-weight:600;font-size:13px;">${x.bank}</div>
+        <div style="font-size:11px;color:#9ca3af;margin-top:2px;">${x.accounts}개 계좌</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-weight:700;color:${COLORS.banks[x.bank] || '#374151'};">${fmtBil(x.balance)}억</div>
+        <div style="font-size:11px;color:#9ca3af;">${(x.balance/total*100).toFixed(1)}%</div>
+      </div>
+    </div>`).join('');
+
+  const tbody = document.querySelector('#banks-table tbody');
+  tbody.innerHTML = DATA.latest_accounts.map(a => `
+    <tr>
+      <td><span class="pill pill-bank-${a.bank}">${a.bank}</span></td>
+      <td>${escapeHtml(a.sub_category)}</td>
+      <td style="font-family:monospace;font-size:12px;color:#6b7280;">${escapeHtml(a.account_no)}</td>
+      <td><span style="font-size:11px;color:#9ca3af;">보통예금</span></td>
+      <td class="num"><b>${fmt(a.balance)}</b></td>
+    </tr>`).join('');
+};
+
+// --- 수금 현황 ---
+renderers.receivable = () => {
+  const deps = DATA.deposits_recent;
+  const total = deps.reduce((a,c)=>a+c.deposit,0);
+  document.getElementById('deposit-summary').textContent = `${deps.length}건 · 합계 ${fmt(total)}원`;
+
+  const tbody = document.querySelector('#deposit-table tbody');
+  tbody.innerHTML = deps.map(d => `
+    <tr>
+      <td>${d.date}</td>
+      <td><span class="pill pill-bank-${d.bank}">${d.bank}</span></td>
+      <td>${escapeHtml(d.sub_category)}</td>
+      <td style="font-family:monospace;font-size:12px;color:#6b7280;">${escapeHtml(d.account_no)}</td>
+      <td class="num num-positive"><b>${fmt(d.deposit)}</b></td>
+    </tr>`).join('');
+};
+
+renderers.outstanding = () => {}; // 정적
+
+// =====================================================
+// EXCEL PARSER - Python extract_all.py 의 JS 포팅 버전
+// 입력: SheetJS workbook
+// 출력: 행 단위 데이터 배열
+// =====================================================
+
+function parseSheetDate(name) {
+  // YYMMDD → Date
+  if (!/^\d{6}$/.test(name)) return null;
+  const yy = parseInt(name.slice(0,2));
+  const mm = parseInt(name.slice(2,4));
+  const dd = parseInt(name.slice(4,6));
+  const yyyy = 2000 + yy;
+  if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return null;
+  return new Date(yyyy, mm-1, dd);
+}
+
+function detectFormat(sheet) {
+  // V2: E4에 '전일잔액' 라벨이 있음
+  const e4 = getCellValue(sheet, 'E4');
+  if (typeof e4 === 'string' && e4.includes('전일')) return 'V2';
+  return 'V1';
+}
+
+function getCellValue(sheet, addr) {
+  const cell = sheet[addr];
+  if (!cell) return null;
+  return cell.v;
+}
+
+function getCell(sheet, row, col) {
+  // row, col are 1-indexed
+  const colLetter = colToLetter(col);
+  return getCellValue(sheet, `${colLetter}${row}`);
+}
+
+function colToLetter(n) {
+  let s = '';
+  while (n > 0) {
+    const m = (n-1) % 26;
+    s = String.fromCharCode(65+m) + s;
+    n = Math.floor((n-1)/26);
+  }
+  return s;
+}
+
+function maxRow(sheet) {
+  if (!sheet['!ref']) return 0;
+  const range = XLSX.utils.decode_range(sheet['!ref']);
+  return range.e.r + 1; // 1-indexed
+}
+
+function extractV2(sheet, sheetDate) {
+  // Python extract_v2 그대로 포팅
+  const rows = [];
+  let currentCategory = null;
+  let inForeign = false;
+  const maxR = maxRow(sheet);
+  
+  for (let r = 6; r <= maxR; r++) {
+    const a = getCell(sheet, r, 1);
+    const b = getCell(sheet, r, 2);
+    const c = getCell(sheet, r, 3);
+    const d = getCell(sheet, r, 4);
+    const e = getCell(sheet, r, 5);
+    const f = getCell(sheet, r, 6);
+    const g = getCell(sheet, r, 7);
+    const h = getCell(sheet, r, 8);
+    
+    // 카테고리 갱신
+    if (typeof a === 'string' && a.trim()) {
+      const aT = a.trim();
+      if (aT.includes('외화') || aT.includes('예적금 외화')) {
+        inForeign = true;
+        currentCategory = aT;
+        continue;
+      }
+      if (aT.includes('차입금') || aT.startsWith('②') || aT.startsWith('③') || aT.startsWith('④')) {
+        break;
+      }
+      if (aT.startsWith('①')) break;
+      currentCategory = aT;
+    }
+    
+    // 소계 건너뛰기
+    if (typeof b === 'string' && b.trim() === '소계') continue;
+    if (inForeign) continue;
+    
+    // 데이터 행
+    if (c && typeof h === 'number') {
+      rows.push({
+        date: formatDate(sheetDate),
+        category: currentCategory || '',
+        bank: (b ? String(b).trim() : ''),
+        account_no: String(c).trim(),
+        sub_category: d ? String(d).trim() : '',
+        prev_balance: typeof e === 'number' ? e : 0,
+        deposit: typeof f === 'number' ? f : 0,
+        withdrawal: typeof g === 'number' ? g : 0,
+        balance: h,
+        format: 'V2',
+      });
+    }
+  }
+  return rows;
+}
+
+function extractV1(sheet, sheetDate) {
+  const rows = [];
+  let currentCategory = null;
+  let inForeign = false;
+  const maxR = maxRow(sheet);
+  
+  for (let r = 5; r <= maxR; r++) {
+    const a = getCell(sheet, r, 1);
+    const b = getCell(sheet, r, 2);
+    const c = getCell(sheet, r, 3);
+    const d = getCell(sheet, r, 4);
+    const h = getCell(sheet, r, 8);
+    
+    // B열 카테고리
+    if (typeof b === 'string') {
+      const bs = b.trim();
+      if (bs.includes('보통예금') && bs.includes('외화')) { inForeign = true; }
+      else if (bs.includes('보통예금')) { inForeign = false; currentCategory = '보통예금'; continue; }
+      else if (bs.includes('예적금') || bs.includes('금융상품')) {
+        currentCategory = inForeign ? '예적금 외화' : '단기금융상품';
+        continue;
+      }
+      else if (bs.includes('대출') && !bs.includes('마이너스')) { currentCategory = '일반대출'; continue; }
+      else if (bs.startsWith('①')) break;
+      else if (bs.startsWith('②') || bs.startsWith('③') || bs.startsWith('④')) break;
+      else if (bs.includes('마이너스')) break;
+    }
+    
+    if (inForeign) continue;
+    
+    if (d && typeof h === 'number' && typeof d === 'string' && /\d/.test(d)) {
+      rows.push({
+        date: formatDate(sheetDate),
+        category: currentCategory || '',
+        bank: '',
+        account_no: d.trim(),
+        sub_category: '',
+        prev_balance: 0,
+        deposit: 0,
+        withdrawal: 0,
+        balance: h,
+        format: 'V1',
+      });
+    }
+  }
+  return rows;
+}
+
+function formatDate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${dd}`;
+}
+
+// 메인 파서 - 하나의 workbook 전체를 받아서 row 배열 반환
+function parseWorkbook(workbook, sourceFileName) {
+  const rows = [];
+  for (const sname of workbook.SheetNames) {
+    const sheetDate = parseSheetDate(sname);
+    if (!sheetDate) continue;
+    const sheet = workbook.Sheets[sname];
+    const fmt = detectFormat(sheet);
+    try {
+      const extracted = fmt === 'V2' ? extractV2(sheet, sheetDate) : extractV1(sheet, sheetDate);
+      for (const r of extracted) {
+        r.source_file = sourceFileName;
+        r.sheet_name = sname;
+      }
+      rows.push(...extracted);
+    } catch(e) {
+      console.warn(`Error parsing ${sname}: ${e.message}`);
+    }
+  }
+  return rows;
+}
+
+// =====================================================
+// 데이터 변환 - 원시 row 배열을 dashboard_data 구조로 변환
+// Python build_data.py 와 동일한 로직
+// =====================================================
+
+function buildDashboardData(rows) {
+  if (rows.length === 0) return null;
+  
+  // 중복 제거 (같은 date+account_no는 하나만 - 최신 source 우선)
+  const seen = {};
+  for (const r of rows) {
+    const key = `${r.date}|${r.account_no}|${r.format}`;
+    seen[key] = r;  // last wins
+  }
+  rows = Object.values(seen);
+  
+  // 일별 그룹 - 같은 날짜에 V1, V2 둘 다 있으면 V2 우선
+  const byDateKey = {};
+  for (const r of rows) {
+    if (!byDateKey[r.date]) byDateKey[r.date] = [];
+    byDateKey[r.date].push(r);
+  }
+  // 같은 날짜에 V2가 있으면 V1 제거
+  for (const date in byDateKey) {
+    const hasV2 = byDateKey[date].some(r => r.format === 'V2');
+    if (hasV2) {
+      byDateKey[date] = byDateKey[date].filter(r => r.format === 'V2');
+    }
+  }
+  rows = Object.values(byDateKey).flat();
+  
+  // 일별 KPI
+  const daily = {};
+  for (const r of rows) {
+    if (!daily[r.date]) daily[r.date] = { total_balance:0, total_deposit:0, total_withdrawal:0, accounts:new Set() };
+    daily[r.date].total_balance += r.balance;
+    daily[r.date].total_deposit += r.deposit;
+    daily[r.date].total_withdrawal += r.withdrawal;
+    daily[r.date].accounts.add(r.account_no);
+  }
+  const dailyArr = Object.entries(daily).map(([d,v]) => ({
+    date_str: d,
+    total_balance: v.total_balance,
+    total_deposit: v.total_deposit,
+    total_withdrawal: v.total_withdrawal,
+    net_change: v.total_deposit - v.total_withdrawal,
+    accounts: v.accounts.size,
+    weekday: ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(d).getDay()],
+  })).sort((a,b) => a.date_str.localeCompare(b.date_str));
+  
+  const latestDate = dailyArr[dailyArr.length-1].date_str;
+  const latestRows = rows.filter(r => r.date === latestDate);
+  
+  // V2에서 은행 매핑 마스터 추출
+  const accountMaster = {};
+  for (const r of rows.filter(x => x.format === 'V2')) {
+    if (!accountMaster[r.account_no]) {
+      accountMaster[r.account_no] = { bank: r.bank, sub_category: r.sub_category, category: r.category };
+    }
+  }
+  // V1 행에 은행/소구분 매핑 채우기
+  for (const r of latestRows) {
+    if (!r.bank && accountMaster[r.account_no]) {
+      r.bank = accountMaster[r.account_no].bank;
+      r.sub_category = accountMaster[r.account_no].sub_category;
+    }
+  }
+  
+  // 은행별 잔액 (최신일)
+  const bankAgg = {};
+  for (const r of latestRows) {
+    const bank = r.bank || '기타';
+    if (!bankAgg[bank]) bankAgg[bank] = { bank, balance:0, accounts:new Set() };
+    bankAgg[bank].balance += r.balance;
+    bankAgg[bank].accounts.add(r.account_no);
+  }
+  const latestBanks = Object.values(bankAgg).map(b => ({
+    bank: b.bank, balance: b.balance, accounts: b.accounts.size
+  })).sort((a,b) => b.balance - a.balance);
+  
+  // 계좌별 정렬
+  const latestAccounts = [...latestRows].sort((a,b) => b.balance - a.balance);
+  
+  // V2 거래 (입금/출금)
+  const v2Rows = rows.filter(r => r.format === 'V2');
+  // V1 행에 은행이 비어있어도 매핑 채워주기 (전체 rows 기준)
+  for (const r of rows) {
+    if (!r.bank && accountMaster[r.account_no]) {
+      r.bank = accountMaster[r.account_no].bank;
+      r.sub_category = accountMaster[r.account_no].sub_category;
+    }
+  }
+  
+  const deposits = v2Rows.filter(r => r.deposit > 0)
+    .sort((a,b) => b.date.localeCompare(a.date) || b.deposit - a.deposit)
+    .slice(0, 50)
+    .map(r => ({ date: r.date, bank: r.bank, account_no: r.account_no, sub_category: r.sub_category, deposit: r.deposit }));
+  
+  const withdrawals = v2Rows.filter(r => r.withdrawal > 0)
+    .sort((a,b) => b.date.localeCompare(a.date) || b.withdrawal - a.withdrawal)
+    .slice(0, 50)
+    .map(r => ({ date: r.date, bank: r.bank, account_no: r.account_no, sub_category: r.sub_category, withdrawal: r.withdrawal }));
+  
+  // ISO 주차
+  function getISOWeek(d) {
+    const date = new Date(d);
+    date.setHours(0,0,0,0);
+    // Thursday of this week determines the year
+    date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+    const week1 = new Date(date.getFullYear(), 0, 4);
+    const week = 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay()+6)%7) / 7);
+    return `${date.getFullYear()}-W${String(week).padStart(2,'0')}`;
+  }
+  
+  // 주간 집계
+  const weekly = {};
+  for (const d of dailyArr) {
+    const wk = getISOWeek(d.date_str);
+    if (!weekly[wk]) weekly[wk] = { iso_week: wk, total_deposit:0, total_withdrawal:0, days:0, start_date:d.date_str, end_date:d.date_str, end_balance:d.total_balance };
+    weekly[wk].total_deposit += d.total_deposit;
+    weekly[wk].total_withdrawal += d.total_withdrawal;
+    weekly[wk].days += 1;
+    if (d.date_str < weekly[wk].start_date) weekly[wk].start_date = d.date_str;
+    if (d.date_str >= weekly[wk].end_date) {
+      weekly[wk].end_date = d.date_str;
+      weekly[wk].end_balance = d.total_balance;
+    }
+  }
+  const weeklyArr = Object.values(weekly).map(w => ({...w, net_change: w.total_deposit - w.total_withdrawal}))
+    .sort((a,b) => a.iso_week.localeCompare(b.iso_week)).slice(-13);
+  
+  // 월간 집계
+  const monthly = {};
+  for (const d of dailyArr) {
+    const ym = d.date_str.slice(0,7);
+    if (!monthly[ym]) monthly[ym] = { year_month:ym, total_deposit:0, total_withdrawal:0, days:0, end_balance:d.total_balance, _last:d.date_str };
+    monthly[ym].total_deposit += d.total_deposit;
+    monthly[ym].total_withdrawal += d.total_withdrawal;
+    monthly[ym].days += 1;
+    if (d.date_str >= monthly[ym]._last) {
+      monthly[ym]._last = d.date_str;
+      monthly[ym].end_balance = d.total_balance;
+    }
+  }
+  const monthlyArr = Object.values(monthly).map(m => ({...m, net_change: m.total_deposit - m.total_withdrawal}))
+    .sort((a,b) => a.year_month.localeCompare(b.year_month));
+  monthlyArr.forEach(m => delete m._last);
+  
+  // 분기 집계
+  const quarterly = {};
+  for (const d of dailyArr) {
+    const [y,mo] = d.date_str.split('-');
+    const q = `${y}Q${Math.ceil(parseInt(mo)/3)}`;
+    if (!quarterly[q]) quarterly[q] = { quarter:q, total_deposit:0, total_withdrawal:0, days:0, end_balance:d.total_balance, _last:d.date_str };
+    quarterly[q].total_deposit += d.total_deposit;
+    quarterly[q].total_withdrawal += d.total_withdrawal;
+    quarterly[q].days += 1;
+    if (d.date_str >= quarterly[q]._last) {
+      quarterly[q]._last = d.date_str;
+      quarterly[q].end_balance = d.total_balance;
+    }
+  }
+  const quarterlyArr = Object.values(quarterly).map(q => ({...q, net_change: q.total_deposit - q.total_withdrawal}))
+    .sort((a,b) => a.quarter.localeCompare(b.quarter));
+  quarterlyArr.forEach(q => delete q._last);
+  
+  // 메타
+  const latestK = dailyArr[dailyArr.length-1];
+  return {
+    meta: {
+      latest_date: latestDate,
+      latest_week: getISOWeek(latestDate),
+      latest_month: latestDate.slice(0,7),
+      latest_quarter: (() => { const [y,m] = latestDate.split('-'); return `${y}Q${Math.ceil(parseInt(m)/3)}`; })(),
+      data_range: `${dailyArr[0].date_str} ~ ${latestDate}`,
+      total_days: dailyArr.length,
+      last_updated: new Date().toISOString(),
+    },
+    kpi_today: {
+      total_balance: latestK.total_balance,
+      total_deposit: latestK.total_deposit,
+      total_withdrawal: latestK.total_withdrawal,
+      net_change: latestK.net_change,
+      account_count: latestK.accounts,
+    },
+    daily_30: dailyArr.slice(-30),
+    daily_all: dailyArr,
+    latest_banks: latestBanks,
+    latest_accounts: latestAccounts.map(r => ({
+      bank: r.bank, sub_category: r.sub_category, account_no: r.account_no,
+      prev_balance: r.prev_balance, deposit: r.deposit, withdrawal: r.withdrawal, balance: r.balance
+    })),
+    deposits_recent: deposits,
+    withdrawals_recent: withdrawals,
+    weekly: weeklyArr,
+    monthly: monthlyArr,
+    quarterly: quarterlyArr,
+  };
+}
+
+
+
+// =====================================================
+// 파일 업로드 / 캐싱 / 갱신
+// =====================================================
+const STORAGE_KEY = 'enjet_finance_data_v1';
+
+function showToast(msg, type) {
+  type = type || 'success';
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, type === 'processing' ? 60000 : 4000);
+  return t;
+}
+
+async function readFileAsArrayBuffer(file) {
+  return new Promise((res, rej) => {
+    const reader = new FileReader();
+    reader.onload = e => res(e.target.result);
+    reader.onerror = e => rej(e);
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+async function processFiles(files) {
+  if (!files || files.length === 0) return;
+  const toast = showToast(`📊 ${files.length}개 파일 처리 중...`, 'processing');
+  
+  try {
+    // 1. 기존 캐시 데이터 로드 (있으면 누적)
+    let existingRows = [];
+    const cached = localStorage.getItem(STORAGE_KEY + '_rows');
+    if (cached) {
+      try { existingRows = JSON.parse(cached); } catch(e) { existingRows = []; }
+    }
+    
+    // 2. 각 파일 파싱
+    const newRows = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      toast.textContent = `📊 (${i+1}/${files.length}) ${file.name} 파싱 중...`;
+      const buf = await readFileAsArrayBuffer(file);
+      const wb = XLSX.read(buf, { type: 'array', cellDates: false });
+      const rows = parseWorkbook(wb, file.name);
+      newRows.push(...rows);
+    }
+    
+    if (newRows.length === 0) {
+      toast.remove();
+      showToast('⚠️ 파일에서 자금일보 시트(YYMMDD)를 찾지 못했습니다', 'error');
+      return;
+    }
+    
+    // 3. 기존 + 신규 병합 (date+account_no+format 키로 중복 제거, 신규 우선)
+    const merged = {};
+    for (const r of existingRows) {
+      merged[`${r.date}|${r.account_no}|${r.format}`] = r;
+    }
+    for (const r of newRows) {
+      merged[`${r.date}|${r.account_no}|${r.format}`] = r;
+    }
+    const allRows = Object.values(merged);
+    
+    // 4. 대시보드 데이터 빌드
+    const newData = buildDashboardData(allRows);
+    if (!newData) throw new Error('데이터 변환 실패');
+    
+    // 5. localStorage 저장
+    try {
+      localStorage.setItem(STORAGE_KEY + '_rows', JSON.stringify(allRows));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
+    } catch(e) {
+      console.warn('localStorage 용량 초과 - 캐싱 실패하지만 화면은 갱신', e);
+    }
+    
+    // 6. 화면 갱신
+    Object.assign(DATA, newData);
+    refreshAll();
+    
+    toast.remove();
+    showToast(`✅ ${newRows.length}건 처리 · 최신: ${newData.meta.latest_date} · 총 ${allRows.length}건 누적`, 'success');
+    
+  } catch (e) {
+    console.error(e);
+    toast.remove();
+    showToast(`❌ 오류: ${e.message}`, 'error');
+  }
+}
+
+function loadCachedData() {
+  const cached = localStorage.getItem(STORAGE_KEY);
+  if (cached) {
+    try {
+      const newData = JSON.parse(cached);
+      Object.assign(DATA, newData);
+      // 캐시 표시 배지
+      const date = document.getElementById('data-date');
+      if (date) {
+        date.textContent = newData.meta.latest_date;
+        if (!document.querySelector('.data-cached')) {
+          const badge = document.createElement('span');
+          badge.className = 'data-cached';
+          badge.textContent = '✓ 캐시됨';
+          badge.title = `마지막 갱신: ${new Date(newData.meta.last_updated || '').toLocaleString('ko-KR')}`;
+          date.parentNode.insertBefore(badge, date.nextSibling);
+        }
+      }
+      return true;
+    } catch(e) { return false; }
+  }
+  return false;
+}
+
+function refreshAll() {
+  // 현재 활성 탭만 다시 렌더
+  if (renderers[activeTab]) renderers[activeTab]();
+}
+
+// 이벤트 핸들러
+document.getElementById('btn-upload').addEventListener('click', () => {
+  document.getElementById('file-input').click();
+});
+document.getElementById('file-input').addEventListener('change', e => {
+  processFiles(Array.from(e.target.files));
+  e.target.value = ''; // 같은 파일 재선택 가능하도록
+});
+document.getElementById('btn-reset').addEventListener('click', () => {
+  if (confirm('업로드한 데이터를 모두 지우고 초기 데이터로 복원하시겠습니까?')) {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(STORAGE_KEY + '_rows');
+    location.reload();
+  }
+});
+
+// 드래그 앤 드롭
+let dragCounter = 0;
+const overlay = document.getElementById('drag-overlay');
+window.addEventListener('dragenter', e => {
+  e.preventDefault();
+  dragCounter++;
+  if (e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.includes('Files')) {
+    overlay.classList.add('active');
+  }
+});
+window.addEventListener('dragleave', e => {
+  e.preventDefault();
+  dragCounter--;
+  if (dragCounter <= 0) {
+    dragCounter = 0;
+    overlay.classList.remove('active');
+  }
+});
+window.addEventListener('dragover', e => { e.preventDefault(); });
+window.addEventListener('drop', e => {
+  e.preventDefault();
+  dragCounter = 0;
+  overlay.classList.remove('active');
+  if (e.dataTransfer && e.dataTransfer.files) {
+    processFiles(Array.from(e.dataTransfer.files));
+  }
+});
+
+// 페이지 로드 시 캐시 복원
+loadCachedData();
+
+
+// =====================================================
+// MSAL 설정 (Azure AD 앱 등록 정보)
+// =====================================================
+// ⚠️ 배포 전 아래 두 값을 Azure AD에서 받은 실제 값으로 교체하세요
+const MSAL_CONFIG = {
+  clientId: 'YOUR_CLIENT_ID_HERE',       // Azure 앱 등록 > Application (client) ID
+  tenantId: 'YOUR_TENANT_ID_HERE',       // Azure 앱 등록 > Directory (tenant) ID
+  redirectUri: window.location.origin + window.location.pathname,
+};
+
+// SharePoint 사이트 정보
+const SP_CONFIG = {
+  hostname: 'enjetco.sharepoint.com',
+  siteName: '06.BackOffice',
+  folderPath: '💰 재무·회계/자금/자금일보',
+};
+
+// MSAL 인스턴스
+let msalInstance = null;
+let currentAccount = null;
+const isConfigured = MSAL_CONFIG.clientId !== 'YOUR_CLIENT_ID_HERE';
+
+function initMSAL() {
+  if (!isConfigured) {
+    document.getElementById('config-warning').classList.add('active');
+    document.getElementById('auth-label').textContent = '설정 필요';
+    document.getElementById('auth-status').className = 'auth-status error';
+    document.getElementById('btn-sync').disabled = true;
+    return false;
+  }
+  msalInstance = new msal.PublicClientApplication({
+    auth: {
+      clientId: MSAL_CONFIG.clientId,
+      authority: `https://login.microsoftonline.com/${MSAL_CONFIG.tenantId}`,
+      redirectUri: MSAL_CONFIG.redirectUri,
+    },
+    cache: {
+      cacheLocation: 'localStorage',
+      storeAuthStateInCookie: false,
+    }
+  });
+  return true;
+}
+
+const GRAPH_SCOPES = ['Files.Read.All', 'Sites.Read.All', 'User.Read'];
+
+async function checkAuthState() {
+  if (!msalInstance) return false;
+  await msalInstance.initialize();
+  // 리디렉션 응답 처리
+  try {
+    const response = await msalInstance.handleRedirectPromise();
+    if (response) {
+      currentAccount = response.account;
+    }
+  } catch (e) {
+    console.error('Redirect handling error:', e);
+  }
+  // 캐시된 계정
+  const accounts = msalInstance.getAllAccounts();
+  if (accounts.length > 0) {
+    currentAccount = accounts[0];
+    updateAuthUI(true);
+    return true;
+  }
+  updateAuthUI(false);
+  return false;
+}
+
+function updateAuthUI(loggedIn) {
+  const status = document.getElementById('auth-status');
+  const label = document.getElementById('auth-label');
+  const logoutBtn = document.getElementById('btn-logout');
+  const modal = document.getElementById('login-modal');
+  const sync = document.getElementById('btn-sync');
+  
+  if (loggedIn && currentAccount) {
+    status.className = 'auth-status logged-in';
+    label.textContent = currentAccount.name || currentAccount.username;
+    logoutBtn.style.display = 'inline-flex';
+    modal.classList.remove('active');
+    sync.disabled = false;
+  } else {
+    status.className = 'auth-status logged-out';
+    label.textContent = '로그인 필요';
+    logoutBtn.style.display = 'none';
+    sync.disabled = true;
+  }
+}
+
+async function login() {
+  try {
+    const response = await msalInstance.loginPopup({ scopes: GRAPH_SCOPES, prompt: 'select_account' });
+    currentAccount = response.account;
+    updateAuthUI(true);
+    showToast('✅ 로그인 성공 - 자동으로 데이터를 동기화합니다', 'success');
+    setTimeout(() => syncFromSharePoint(), 800);
+  } catch (e) {
+    console.error(e);
+    showToast(`❌ 로그인 실패: ${e.message}`, 'error');
+  }
+}
+
+async function logout() {
+  try {
+    await msalInstance.logoutPopup({ account: currentAccount });
+  } catch (e) {
+    // Popup blocked etc - clear local state anyway
+    msalInstance.clearCache();
+  }
+  currentAccount = null;
+  updateAuthUI(false);
+  document.getElementById('login-modal').classList.add('active');
+}
+
+async function getAccessToken() {
+  if (!currentAccount) throw new Error('로그인 상태가 아닙니다');
+  try {
+    const result = await msalInstance.acquireTokenSilent({
+      scopes: GRAPH_SCOPES,
+      account: currentAccount,
+    });
+    return result.accessToken;
+  } catch (e) {
+    // 토큰 만료 등 → 대화형으로 재시도
+    if (e instanceof msal.InteractionRequiredAuthError) {
+      const result = await msalInstance.acquireTokenPopup({ scopes: GRAPH_SCOPES });
+      return result.accessToken;
+    }
+    throw e;
+  }
+}
+
+// =====================================================
+// Microsoft Graph API
+// =====================================================
+async function graphFetch(url, options) {
+  const token = await getAccessToken();
+  const res = await fetch(`https://graph.microsoft.com/v1.0${url}`, {
+    ...options,
+    headers: {
+      ...(options && options.headers),
+      Authorization: `Bearer ${token}`,
+    }
+  });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`Graph API ${res.status}: ${txt.slice(0,200)}`);
+  }
+  return res;
+}
+
+async function graphJson(url) {
+  const res = await graphFetch(url);
+  return res.json();
+}
+
+async function graphBinary(url) {
+  const res = await graphFetch(url);
+  return res.arrayBuffer();
+}
+
+// SharePoint 사이트 ID 캐싱
+let cachedSiteId = null;
+let cachedDriveId = null;
+
+async function getSiteId() {
+  if (cachedSiteId) return cachedSiteId;
+  const data = await graphJson(`/sites/${SP_CONFIG.hostname}:/sites/${SP_CONFIG.siteName}`);
+  cachedSiteId = data.id;
+  return cachedSiteId;
+}
+
+async function getDriveId() {
+  if (cachedDriveId) return cachedDriveId;
+  const siteId = await getSiteId();
+  const data = await graphJson(`/sites/${siteId}/drives`);
+  // "Documents" (한글: 문서) 드라이브 찾기
+  const docsDrive = data.value.find(d => d.name === 'Documents' || d.name === '문서') || data.value[0];
+  cachedDriveId = docsDrive.id;
+  return cachedDriveId;
+}
+
+async function listFolderContents(folderPath) {
+  const driveId = await getDriveId();
+  // URL 인코딩
+  const encoded = encodeURIComponent(folderPath).replace(/'/g, "''");
+  const data = await graphJson(`/drives/${driveId}/root:/${encoded}:/children?$top=200&$select=id,name,lastModifiedDateTime,size,folder,file,@microsoft.graph.downloadUrl`);
+  return data.value;
+}
+
+async function findAllJageumFiles() {
+  // 1. 자금일보 폴더의 자식들 (2025년, 2026년 폴더 등)
+  const root = await listFolderContents(SP_CONFIG.folderPath);
+  const yearFolders = root.filter(item => item.folder && /\d{4}년/.test(item.name));
+  
+  const allFiles = [];
+  
+  // 2. 각 연도 폴더에서 "자금일보신양식" 파일 찾기
+  for (const yf of yearFolders) {
+    try {
+      const yearPath = `${SP_CONFIG.folderPath}/${yf.name}`;
+      const children = await listFolderContents(yearPath);
+      const xlsxFiles = children.filter(item => 
+        item.file && 
+        item.name.endsWith('.xlsx') && 
+        item.name.includes('자금일보신양식')
+      );
+      for (const f of xlsxFiles) {
+        allFiles.push({
+          name: f.name,
+          path: `${yearPath}/${f.name}`,
+          lastModified: f.lastModifiedDateTime,
+          size: f.size,
+          downloadUrl: f['@microsoft.graph.downloadUrl'],
+          year: yf.name,
+        });
+      }
+    } catch (e) {
+      console.warn(`Failed to list ${yf.name}:`, e);
+    }
+  }
+  
+  return allFiles;
+}
+
+async function downloadFile(downloadUrl) {
+  // downloadUrl은 인증 토큰이 이미 포함된 임시 URL이라 직접 fetch
+  const res = await fetch(downloadUrl);
+  if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+  return res.arrayBuffer();
+}
+
+// =====================================================
+// SharePoint 동기화 메인 플로우
+// =====================================================
+const SYNC_META_KEY = STORAGE_KEY + '_sync_meta';
+
+async function syncFromSharePoint() {
+  const syncBtn = document.getElementById('btn-sync');
+  const toast = showToast('🔍 SharePoint에서 파일 목록 조회 중...', 'processing');
+  syncBtn.classList.add('syncing');
+  syncBtn.disabled = true;
+  
+  try {
+    // 1. 파일 목록
+    const files = await findAllJageumFiles();
+    if (files.length === 0) {
+      throw new Error('자금일보 파일을 찾지 못했습니다');
+    }
+    toast.textContent = `📋 ${files.length}개 파일 발견 - 변경된 파일 확인 중...`;
+    
+    // 2. 마지막 동기화 메타데이터 (파일별 lastModified)
+    let syncMeta = {};
+    try {
+      const cached = localStorage.getItem(SYNC_META_KEY);
+      if (cached) syncMeta = JSON.parse(cached);
+    } catch(e) {}
+    
+    // 3. 변경된/신규 파일만 필터링
+    const toDownload = files.filter(f => syncMeta[f.path] !== f.lastModified);
+    
+    if (toDownload.length === 0) {
+      toast.remove();
+      showToast(`✓ 이미 최신 상태입니다 (${files.length}개 파일 검사)`, 'success');
+      syncBtn.classList.remove('syncing');
+      syncBtn.disabled = false;
+      return;
+    }
+    
+    toast.textContent = `📥 ${toDownload.length}개 파일 다운로드 중...`;
+    
+    // 4. 다운로드 + 파싱
+    let newRowsAll = [];
+    for (let i = 0; i < toDownload.length; i++) {
+      const f = toDownload[i];
+      toast.textContent = `📥 (${i+1}/${toDownload.length}) ${f.name}`;
+      try {
+        const buf = await downloadFile(f.downloadUrl);
+        const wb = XLSX.read(buf, { type: 'array', cellDates: false });
+        const rows = parseWorkbook(wb, f.name);
+        newRowsAll.push(...rows);
+        syncMeta[f.path] = f.lastModified;
+      } catch (e) {
+        console.warn(`Failed: ${f.name}`, e);
+      }
+    }
+    
+    // 5. 기존 + 신규 병합
+    let existingRows = [];
+    try {
+      const cached = localStorage.getItem(STORAGE_KEY + '_rows');
+      if (cached) existingRows = JSON.parse(cached);
+    } catch(e) {}
+    
+    const merged = {};
+    for (const r of existingRows) merged[`${r.date}|${r.account_no}|${r.format}`] = r;
+    for (const r of newRowsAll) merged[`${r.date}|${r.account_no}|${r.format}`] = r;
+    const allRows = Object.values(merged);
+    
+    // 6. 빌드 + 저장 + 갱신
+    const newData = buildDashboardData(allRows);
+    if (!newData) throw new Error('데이터 변환 실패');
+    
+    try {
+      localStorage.setItem(STORAGE_KEY + '_rows', JSON.stringify(allRows));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
+      localStorage.setItem(SYNC_META_KEY, JSON.stringify(syncMeta));
+    } catch(e) {
+      console.warn('localStorage 용량 초과:', e);
+    }
+    
+    Object.assign(DATA, newData);
+    refreshAll();
+    
+    toast.remove();
+    showToast(`✅ 동기화 완료 · ${toDownload.length}개 파일 갱신 · 최신: ${newData.meta.latest_date}`, 'success');
+    
+  } catch (e) {
+    console.error(e);
+    toast.remove();
+    if (e.message && e.message.includes('401')) {
+      showToast('🔐 인증 만료 - 다시 로그인해 주세요', 'error');
+      setTimeout(() => login(), 1000);
+    } else {
+      showToast(`❌ 동기화 실패: ${e.message}`, 'error');
+    }
+  } finally {
+    syncBtn.classList.remove('syncing');
+    syncBtn.disabled = false;
+  }
+}
+
+// =====================================================
+// 이벤트 핸들러
+// =====================================================
+document.getElementById('btn-sync').addEventListener('click', () => {
+  if (!isConfigured) {
+    showToast('⚠️ Azure AD 설정이 필요합니다. HTML 상단 MSAL_CONFIG를 확인해주세요', 'error');
+    return;
+  }
+  if (!currentAccount) {
+    document.getElementById('login-modal').classList.add('active');
+    return;
+  }
+  syncFromSharePoint();
+});
+
+document.getElementById('btn-do-login').addEventListener('click', login);
+document.getElementById('btn-logout').addEventListener('click', logout);
+
+// 모달 외부 클릭 시 닫기 방지 (강제 로그인)
+// 단, 미설정 시는 닫을 수 있게
+document.getElementById('login-modal').addEventListener('click', e => {
+  if (e.target.id === 'login-modal' && !isConfigured) {
+    e.currentTarget.classList.remove('active');
+  }
+});
+
+// =====================================================
+// 초기화 플로우
+// =====================================================
+(async () => {
+  if (!initMSAL()) {
+    // 설정 미완료 - 캐시된 데이터로 작동
+    return;
+  }
+  
+  const loggedIn = await checkAuthState();
+  if (!loggedIn) {
+    document.getElementById('login-modal').classList.add('active');
+  } else {
+    // 자동 동기화 - 마지막 동기화 후 10분 이상 지났을 때만
+    const lastSync = parseInt(localStorage.getItem(SYNC_META_KEY + '_ts') || '0');
+    const now = Date.now();
+    if (now - lastSync > 10 * 60 * 1000) {
+      setTimeout(() => {
+        syncFromSharePoint();
+        localStorage.setItem(SYNC_META_KEY + '_ts', String(now));
+      }, 500);
+    }
+  }
+})();
+
+
+
+// 초기 렌더
+renderers.daily();
+</script>
+</body>
+</html>
