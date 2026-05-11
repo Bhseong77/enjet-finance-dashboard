@@ -728,6 +728,7 @@ async function loadContacts(){
 }
 function renderCos(cos){
   const q=document.getElementById("coSrch").value.toLowerCase(),tp=document.getElementById("coTp").value;
+  window._cmap={};let ri=0;
   const f=cos.filter(c=>{
     if(q&&!c.toLowerCase().includes(q))return false;
     const isI=coMap[c]?.some(r=>String(r["휴대폰"]||"").startsWith("+"));
@@ -737,10 +738,11 @@ function renderCos(cos){
     const cts=coMap[co]||[],isI=cts.some(r=>String(r["휴대폰"]||"").startsWith("+"));
     const roles=cts.map(r=>r["직함"]||"").filter(Boolean).slice(0,2).join(" · ")||"담당자 "+cts.length+"명";
     const s=co===selCo?"sel":"";
-    return `<div class="coi ${s}" onclick="pickCo(this,'${co.replace(/\/g,"\\").replace(/'/g,"\'")}')"><div class="co-ic">${co.charAt(0)}</div><div class="co-in"><div class="co-nm">${co}</div><div class="co-mt">${isI?"🌏 해외":"🇰🇷 국내"} · ${roles}</div></div><div class="co-cn">${cts.length}</div></div>`;
+    const _ci='c'+(ri++);window._cmap[_ci]=co;
+    return `<div class="coi ${s}" onclick="pickCoId('${_ci}',this)"><div class="co-ic">${co.charAt(0)}</div><div class="co-in"><div class="co-nm">${co}</div><div class="co-mt">${isI?"🌏 해외":"🇰🇷 국내"} · ${roles}</div></div><div class="co-cn">${cts.length}</div></div>`;
   }).join("");
 }
-function pickCo(el,co){
+function pickCoId(cid,el){ const co=window._cmap&&window._cmap[cid]||""; 
   selCo=co;document.querySelectorAll(".coi").forEach(e=>e.classList.remove("sel"));el.classList.add("sel");
   $("selCoNm",co);$("ctCnt",(coMap[co]||[]).length+"명");renderCtCards(coMap[co]||[]);
 }
