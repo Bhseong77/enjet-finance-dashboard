@@ -220,7 +220,7 @@ async function graphToken(){
   try{ const r = await pca.acquireTokenSilent({scopes, account:acct}); return r.accessToken; }
   catch(e){ const r = await pca.acquireTokenPopup({scopes}); return r.accessToken; }
 }
-async function resolveServerEndpoint(){
+async function resolveServerEndpoint(force){
   try{
     const t = await graphToken();
     if(!_epDriveId){
@@ -230,15 +230,26 @@ async function resolveServerEndpoint(){
       _epDriveId = (await r2.json()).id;
     }
     const enc = SERVER_ENDPOINT_PATH.split("/").map(encodeURIComponent).join("/");
-    const r = await fetch(`https://graph.microsoft.com/v1.0/drives/${_epDriveId}/root:/${enc}:/content`,{headers:{Authorization:"Bearer "+t}});
+    // 캐시 우회: 매번 최신 server-endpoint.json
+    const r = await fetch(`https://graph.microsoft.com/v1.0/drives/${_epDriveId}/root:/${enc}:/content?t=${Date.now()}`,{headers:{Authorization:"Bearer "+t}});
     if(r.ok){
       const d = await r.json();
-      if(d && d.url){ PORTAL_BASE = String(d.url).replace(/\/+$/,''); }
+      if(d && d.url){
+        const u = String(d.url).replace(/\/+$/,'');
+        if(u !== PORTAL_BASE){ PORTAL_BASE = u; console.log("터널 주소 갱신:", u); }
+      }
     }
   }catch(e){ console.warn("터널 주소 조회 실패:", e.message); }
   if(location.hostname === "localhost" && !PORTAL_BASE) PORTAL_BASE = "http://localhost:5000";
   document.getElementById("conn").textContent = PORTAL_BASE ? ("서버: " + PORTAL_BASE) : "서버 주소 미확인";
   return PORTAL_BASE;
+}
+
+// 30초마다 터널 주소 자동 갱신 (서버 재시작으로 주소 바뀌어도 따라감)
+let _epTimer = null;
+function startEndpointWatch(){
+  if(_epTimer) return;
+  _epTimer = setInterval(()=>resolveServerEndpoint(true), 30000);
 }
 
 const msalConfig = {
@@ -285,6 +296,7 @@ document.querySelectorAll(".nav-item").forEach(b=>b.onclick=()=>{
 async function initForms(){
   window._docsLoaded=true;
   await resolveServerEndpoint();
+  startEndpointWatch();
   // 양식 드롭다운 동적 로딩
   try{
     const r=await fetch(`${PORTAL_BASE}/daou/api/forms`);
@@ -303,9 +315,22 @@ async function loadDocs(){
   const tb=document.getElementById("docRows");
   tb.innerHTML='<tr><td colspan="7" class="empty-state"><span class="spin"></span> 불러오는 중…</td></tr>';
   if(!PORTAL_BASE) await resolveServerEndpoint();
+  const url=()=>`${PORTAL_BASE}/daou/api/docs?limit=300&form=${encodeURIComponent(form)}&q=${encodeURIComponent(q)}`;
+  let d=null;
   try{
-    const r=await fetch(`${PORTAL_BASE}/daou/api/docs?limit=300&form=${encodeURIComponent(form)}&q=${encodeURIComponent(q)}`);
-    const d=await r.json();
+    let r=await fetch(url());
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    d=await r.json();
+  }catch(e){
+    // 터널 주소 바뀐 경우 → 최신 주소 다시 읽고 1회 재시도
+    await resolveServerEndpoint(true);
+    try{ const r2=await fetch(url()); d=await r2.json(); }
+    catch(e2){
+      tb.innerHTML=`<tr><td colspan="7" class="empty-state">포털 연결 실패<br><span class="muted">${PORTAL_BASE} 서버 확인</span></td></tr>`;
+      return;
+    }
+  }
+  try{
     if(!d.length){ tb.innerHTML='<tr><td colspan="7" class="empty-state">문서가 없습니다</td></tr>'; return; }
     tb.innerHTML=d.map(x=>`<tr data-id="${esc(String(x.docId))}" data-title="${esc(x.제목||'')}">
       <td>${(x.기안일||'').replace('T',' ').slice(0,16)}</td><td>${esc(form)}</td>
@@ -316,7 +341,7 @@ async function loadDocs(){
       tr.onclick=()=>openDoc(tr.dataset.id, tr.dataset.title);
     });
   }catch(e){
-    tb.innerHTML=`<tr><td colspan="7" class="empty-state">포털 연결 실패<br><span class="muted">${PORTAL_BASE} 서버 확인</span></td></tr>`;
+    tb.innerHTML=`<tr><td colspan="7" class="empty-state">표시 오류</td></tr>`;
   }
 }
 
