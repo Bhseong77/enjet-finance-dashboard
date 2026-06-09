@@ -234,10 +234,41 @@ tbody tr.sel{background:var(--pd)}
 
 <script>
 /* ===== 설정 ===== */
-// 다우 포털(do_portal) 주소 — 로컬 테스트는 localhost, 배포 시 Cloudflare 터널 https URL로 교체
-const PORTAL_BASE = location.hostname === "localhost"
-  ? "http://localhost:5001"
-  : "https://다우포털-터널주소.example.com";   // ← Cloudflare 터널 URL로 교체
+// 서버(다우 포털)는 메인 server.py(5000)에 합쳐져 있고, 터널 주소는 매번 바뀌므로
+// SharePoint server-endpoint.json 에서 현재 주소를 읽어 따라간다 (메일/ERP 대시보드와 동일).
+let PORTAL_BASE = "";   // resolveServerEndpoint() 가 채움
+const SERVER_ENDPOINT_SITE = "enjetco.sharepoint.com:/sites/TIC";
+const SERVER_ENDPOINT_PATH = "01.통합관리/99.서버/server-endpoint.json";
+let _epDriveId = null;
+
+async function graphToken(){
+  await pca.initialize();
+  const acct = pca.getActiveAccount() || pca.getAllAccounts()[0];
+  if(!acct) throw new Error("로그인 필요");
+  const scopes = ["Sites.ReadWrite.All","Files.ReadWrite.All"];
+  try{ const r = await pca.acquireTokenSilent({scopes, account:acct}); return r.accessToken; }
+  catch(e){ const r = await pca.acquireTokenPopup({scopes}); return r.accessToken; }
+}
+async function resolveServerEndpoint(){
+  try{
+    const t = await graphToken();
+    if(!_epDriveId){
+      const r1 = await fetch(`https://graph.microsoft.com/v1.0/sites/${SERVER_ENDPOINT_SITE}`,{headers:{Authorization:"Bearer "+t}});
+      const sid = (await r1.json()).id;
+      const r2 = await fetch(`https://graph.microsoft.com/v1.0/sites/${sid}/drive`,{headers:{Authorization:"Bearer "+t}});
+      _epDriveId = (await r2.json()).id;
+    }
+    const enc = SERVER_ENDPOINT_PATH.split("/").map(encodeURIComponent).join("/");
+    const r = await fetch(`https://graph.microsoft.com/v1.0/drives/${_epDriveId}/root:/${enc}:/content`,{headers:{Authorization:"Bearer "+t}});
+    if(r.ok){
+      const d = await r.json();
+      if(d && d.url){ PORTAL_BASE = String(d.url).replace(/\/+$/,''); }
+    }
+  }catch(e){ console.warn("터널 주소 조회 실패:", e.message); }
+  if(location.hostname === "localhost" && !PORTAL_BASE) PORTAL_BASE = "http://localhost:5000";
+  document.getElementById("conn").textContent = PORTAL_BASE ? ("서버: " + PORTAL_BASE) : "서버 주소 미확인";
+  return PORTAL_BASE;
+}
 
 const msalConfig = {
   auth: {
@@ -288,7 +319,7 @@ document.querySelectorAll(".nav-item").forEach(b=>b.onclick=()=>{
 /* ===== 결재문서: do_portal 연동 ===== */
 async function initForms(){
   window._docsLoaded=true;
-  document.getElementById("conn").innerHTML="포털 연결: "+PORTAL_BASE;
+  await resolveServerEndpoint();
   loadDocs();
 }
 async function loadDocs(){
@@ -296,8 +327,9 @@ async function loadDocs(){
   const q=document.getElementById("q").value;
   const tb=document.getElementById("docRows");
   tb.innerHTML='<tr><td colspan="5" class="empty-state"><span class="spin"></span> 불러오는 중…</td></tr>';
+  if(!PORTAL_BASE) await resolveServerEndpoint();
   try{
-    const r=await fetch(`${PORTAL_BASE}/api/docs?limit=200&form=${encodeURIComponent(form)}&q=${encodeURIComponent(q)}`);
+    const r=await fetch(`${PORTAL_BASE}/daou/api/docs?limit=200&form=${encodeURIComponent(form)}&q=${encodeURIComponent(q)}`);
     const d=await r.json();
     if(!d.length){ tb.innerHTML='<tr><td colspan="5" class="empty-state">문서가 없습니다</td></tr>'; return; }
     tb.innerHTML=d.map(x=>`<tr onclick="openDoc('${x.docId}',this)">
@@ -314,11 +346,11 @@ async function openDoc(id,row){
   const box=document.getElementById("detail");
   box.innerHTML='<div class="detail-empty"><span class="spin"></span> 조회 중…</div>';
   try{
-    const r=await fetch(`${PORTAL_BASE}/api/doc/${id}`); const m=await r.json();
+    const r=await fetch(`${PORTAL_BASE}/daou/api/doc/${id}`); const m=await r.json();
     const items=(m.items||[]).map(i=>`<tr><td>${esc(i.거래처||'')}</td><td>${esc(i.품명||'')}</td><td class="num">${esc(i.금액||'')}</td></tr>`).join('');
     const line=(m.line||[]).filter(l=>l.name).map(l=>`${esc(l.name)}(${esc(l.status||'')})`).join(' → ');
     const atts=(m.attaches||[]).map(f=>f.url
-      ?`<a href="${PORTAL_BASE}/dl?u=${encodeURIComponent(f.url)}" target="_blank">📄 ${esc(f.name)} <span class="muted">${esc(f.size||'')}</span></a>`
+      ?`<a href="${PORTAL_BASE}/daou/dl?u=${encodeURIComponent(f.url)}" target="_blank">📄 ${esc(f.name)} <span class="muted">${esc(f.size||'')}</span></a>`
       :`📄 ${esc(f.name)}`).join('<br>');
     box.innerHTML=`
       <div class="detail-head">
@@ -328,7 +360,7 @@ async function openDoc(id,row){
       </div>
       ${items?`<div class="mini-tbl"><h4>명세</h4><table><thead><tr><th>거래처</th><th>품명</th><th class="num">금액</th></tr></thead><tbody>${items}</tbody></table></div>`:''}
       ${atts?`<div class="atts"><b>첨부</b><br>${atts}</div>`:''}
-      <div class="detail-body"><iframe src="${PORTAL_BASE}/body/${id}"></iframe></div>`;
+      <div class="detail-body"><iframe src="${PORTAL_BASE}/daou/body/${id}"></iframe></div>`;
   }catch(e){ box.innerHTML='<div class="detail-empty">본문 조회 실패</div>'; }
 }
 function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
