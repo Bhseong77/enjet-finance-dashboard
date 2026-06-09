@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ENJET 재무회계 대시보드</title>
-<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+<script src="https://alcdn.msauth.net/browser/2.38.4/js/msal-browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
 :root{
@@ -281,16 +281,18 @@ const msalConfig = {
 </script>
 <script>
 /* ===== MSAL ===== */
-const pca = new msal.PublicClientApplication(msalConfig);
+let pca;
 
 async function initAuth(){
+  if(typeof msal === "undefined"){ setTimeout(initAuth, 150); return; }  // CDN 로드 대기
+  pca = new msal.PublicClientApplication(msalConfig);
   await pca.initialize();
   const resp = await pca.handleRedirectPromise().catch(()=>null);
   let acct = (resp && resp.account) || pca.getAllAccounts()[0];
   if(acct){ showApp(acct); }
 }
-function signIn(){ pca.loginRedirect({ scopes:["User.Read"] }); }
-function signOut(){ pca.logoutRedirect(); }
+function signIn(){ if(!pca){ setTimeout(signIn,200); return; } pca.loginRedirect({ scopes:["User.Read"] }); }
+function signOut(){ if(pca) pca.logoutRedirect(); }
 function showApp(acct){
   pca.setActiveAccount(acct);
   document.getElementById("gate").style.display="none";
