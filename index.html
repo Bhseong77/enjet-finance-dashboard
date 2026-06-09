@@ -4,7 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ENJET 재무회계 대시보드</title>
-<script src="https://alcdn.msauth.net/browser/2.38.4/js/msal-browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.7.1/lib/msal-browser.min.js"></script>
+<script>
+// MSAL 로드 실패(CDN 차단 등) 대비 대체 로더
+window.addEventListener("DOMContentLoaded", function(){
+  if (typeof msal === "undefined") {
+    var s = document.createElement("script");
+    s.src = "https://alcdn.msauth.net/browser/2.38.4/js/msal-browser.min.js";
+    s.onload = function(){ if (typeof initAuth === "function") initAuth(); };
+    document.head.appendChild(s);
+  }
+});
+</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
 :root{
