@@ -91,15 +91,15 @@ a{color:inherit}
 .filters select,.filters input{padding:9px 12px;border:1px solid var(--border2);border-radius:8px;font-size:13px;font-family:inherit}
 .filters input{flex:1;min-width:180px}
 .filters .btn{padding:9px 18px;background:var(--p);color:#fff;border:none;border-radius:8px;font-weight:600}
-.split{display:grid;grid-template-columns:minmax(380px,1fr) 1.3fr;gap:16px;align-items:start}
 .tablewrap{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+.tablewrap.full{width:100%}
 table{border-collapse:collapse;width:100%}
 th,td{padding:9px 12px;font-size:12.5px;text-align:left;border-bottom:1px solid var(--border)}
-th{background:var(--bg3);font-weight:700;color:var(--t2);position:sticky;top:0}
+th{background:var(--bg3);font-weight:700;color:var(--t2);position:sticky;top:0;z-index:1}
 tbody tr{cursor:pointer}
 tbody tr:hover{background:var(--pd)}
 tbody tr.sel{background:var(--pd)}
-.tbl-scroll{max-height:620px;overflow:auto}
+.tbl-scroll{max-height:calc(100vh - 220px);overflow:auto}
 .dot-c{color:var(--g)} .dot-n{color:var(--t3)}
 .num{text-align:right;font-variant-numeric:tabular-nums}
 .st{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600}
@@ -107,20 +107,24 @@ tbody tr.sel{background:var(--pd)}
 .st.진행중{background:var(--yd);color:var(--y)}
 .st.반려{background:var(--rd);color:var(--r)}
 
-/* detail */
-.detail{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);overflow:hidden;position:sticky;top:84px}
-.detail-empty{padding:80px 20px;text-align:center;color:var(--t3)}
-.detail-head{padding:16px 20px;border-bottom:1px solid var(--border)}
-.detail-head .docno{font-weight:800;font-size:15px}
-.detail-head .tag{font-size:10px;padding:2px 8px;border-radius:10px;background:var(--pd);color:var(--p);margin-left:8px;font-weight:700}
-.detail-head .meta{font-size:12px;color:var(--t2);margin-top:6px;line-height:1.7}
-.detail-body iframe{width:100%;height:600px;border:none;border-top:1px solid var(--border)}
-.mini-tbl{padding:14px 20px}
-.mini-tbl h4{font-size:12px;color:var(--t2);margin-bottom:8px}
-.mini-tbl table td,.mini-tbl table th{padding:6px 8px;font-size:12px}
-.atts{padding:10px 20px;border-top:1px solid var(--border);font-size:12.5px}
-.atts a{color:var(--p);text-decoration:none;display:inline-block;margin:3px 0}
-.atts a:hover{text-decoration:underline}
+/* 문서 본문 모달 (여러 개 스택) */
+#modalLayer{position:fixed;inset:0;pointer-events:none;z-index:99999}
+.docmodal{position:fixed;background:#fff;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.35);
+  display:flex;flex-direction:column;overflow:hidden;pointer-events:auto;border:1px solid var(--border)}
+.docmodal .mbar{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg3);
+  border-bottom:1px solid var(--border);cursor:move;user-select:none}
+.docmodal .mbar .mtit{font-weight:700;font-size:13px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.docmodal .mbar .tag{font-size:10px;padding:2px 7px;border-radius:9px;background:var(--pd);color:var(--p);font-weight:700}
+.docmodal .mbar button{border:none;background:none;cursor:pointer;font-size:15px;padding:2px 6px;border-radius:6px;color:var(--t2)}
+.docmodal .mbar button:hover{background:var(--border)}
+.docmodal .mmeta{padding:8px 14px;font-size:12px;color:var(--t2);border-bottom:1px solid var(--border);line-height:1.6;max-height:120px;overflow:auto}
+.docmodal .mmeta b{color:var(--t1)}
+.docmodal .matts{padding:6px 14px;font-size:12px;border-bottom:1px solid var(--border)}
+.docmodal .matts a{color:var(--p);text-decoration:none;margin-right:12px}
+.docmodal .matts a:hover{text-decoration:underline}
+.docmodal iframe{flex:1;width:100%;border:none}
+.docmodal .mresize{position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;
+  background:linear-gradient(135deg,transparent 50%,var(--t3) 50%);border-bottom-right-radius:12px}
 
 /* 예산 placeholder */
 .bud-grid{width:100%}
@@ -155,10 +159,7 @@ tbody tr.sel{background:var(--pd)}
   <aside class="sidebar">
     <div class="brand">EN<span>JET</span> 재무<br><small>다우오피스 결재 · 재무회계</small></div>
     <nav class="nav">
-      <button class="nav-item on" data-tab="summary"><span class="nav-ico">📊</span> 요약</button>
-      <button class="nav-item" data-tab="docs"><span class="nav-ico">📑</span> 결재문서</button>
-      <button class="nav-item" data-tab="spend"><span class="nav-ico">💳</span> 지출명세</button>
-      <button class="nav-item" data-tab="budget"><span class="nav-ico">🎯</span> 예산현황</button>
+      <button class="nav-item on" data-tab="docs"><span class="nav-ico">📑</span> 결재문서</button>
     </nav>
     <div class="nav-foot">
       <div class="avatar" id="avatar">?</div>
@@ -169,78 +170,32 @@ tbody tr.sel{background:var(--pd)}
 
   <div class="main">
     <div class="topbar">
-      <div><h1 id="pageTitle">요약</h1><div class="sub" id="pageSub">이번 달 지출 현황</div></div>
+      <div><h1 id="pageTitle">결재문서</h1><div class="sub" id="pageSub">다우오피스 결재문서 조회</div></div>
       <div class="muted" id="conn"></div>
     </div>
     <div class="content">
 
-      <!-- 요약 -->
-      <section class="page on" id="page-summary">
-        <div style="margin-bottom:12px"><span class="badge">샘플 데이터</span> <span class="muted">실데이터 연동 전 레이아웃 미리보기</span></div>
-        <div class="kpis">
-          <div class="kpi"><div class="lab">이번 달 지출 합계</div><div class="val">₩182,450,300</div><div class="delta down">▲ 8.2% 전월 대비</div><div class="accent"></div></div>
-          <div class="kpi"><div class="lab">결재 진행중</div><div class="val">14건</div><div class="delta">대기 ₩23,100,000</div><div class="accent" style="background:var(--y)"></div></div>
-          <div class="kpi"><div class="lab">완료 문서</div><div class="val">202건</div><div class="delta up">이번 달</div><div class="accent" style="background:var(--g)"></div></div>
-          <div class="kpi"><div class="lab">예산 집행률</div><div class="val">67.3%</div><div class="delta">잔액 ₩88,700,000</div><div class="accent" style="background:var(--p2)"></div></div>
-        </div>
-        <div class="grid2">
-          <div class="card"><h3>월별 지출 추세</h3><div class="card-chart"><canvas id="trendChart"></canvas></div></div>
-          <div class="card"><h3>양식별 비중</h3><div class="card-chart"><canvas id="formChart"></canvas></div></div>
-        </div>
-        <div class="card"><h3>부서별 지출</h3><div class="card-chart" style="height:220px"><canvas id="deptChart"></canvas></div></div>
-      </section>
-
       <!-- 결재문서 (do_portal 연동) -->
-      <section class="page" id="page-docs">
+      <section class="page on" id="page-docs">
         <div class="filters">
           <select id="formSel"><option value="지출결의서(엔젯)">지출결의서(엔젯)</option></select>
           <input id="q" placeholder="제목 / 기안자 검색" onkeydown="if(event.key==='Enter')loadDocs()">
           <button class="btn" onclick="loadDocs()">조회</button>
         </div>
-        <div class="split">
-          <div class="tablewrap">
-            <div class="tbl-scroll">
-              <table><thead><tr><th>기안일</th><th>제목</th><th>기안자</th><th>상태</th><th>캐시</th></tr></thead>
-              <tbody id="docRows"><tr><td colspan="5" class="empty-state">조회를 눌러주세요</td></tr></tbody></table>
-            </div>
+        <div class="tablewrap full">
+          <div class="tbl-scroll">
+            <table><thead><tr><th>기안일</th><th>양식</th><th>제목</th><th>기안자</th><th>부서</th><th>상태</th><th>캐시</th></tr></thead>
+            <tbody id="docRows"><tr><td colspan="7" class="empty-state">조회를 눌러주세요</td></tr></tbody></table>
           </div>
-          <div class="detail" id="detail"><div class="detail-empty">왼쪽에서 문서를 선택하세요</div></div>
-        </div>
-      </section>
-
-      <!-- 지출명세 -->
-      <section class="page" id="page-spend">
-        <div style="margin-bottom:12px"><span class="badge">샘플 데이터</span> <span class="muted">지출결의서 명세 집계 — 캐시 적재 후 실데이터</span></div>
-        <div class="card">
-          <h3>지출 명세 <span class="muted" style="font-weight:500">거래처 · 품명 · 금액</span></h3>
-          <table>
-            <thead><tr><th>기안일</th><th>부서</th><th>거래처</th><th>품명</th><th class="num">금액</th></tr></thead>
-            <tbody>
-              <tr><td>2026-06-05</td><td>재무회계팀</td><td>한국예탁결제원</td><td>주식 발행등록 수수료</td><td class="num">42,000</td></tr>
-              <tr><td>2026-06-05</td><td>경영기획팀</td><td>(주)신화소방엔지니어링</td><td>화재감지기 점검비용</td><td class="num">418,000</td></tr>
-              <tr><td>2026-06-04</td><td>미래성장전략팀</td><td>HS로지스</td><td>긴급 수출 운임</td><td class="num">198,000</td></tr>
-              <tr><td>2026-06-01</td><td>재무회계팀</td><td>신한투자증권</td><td>사모주선수수료</td><td class="num">25,000,000</td></tr>
-            </tbody>
-            <tfoot><tr><th colspan="4">합계</th><th class="num">25,658,000</th></tr></tfoot>
-          </table>
-        </div>
-      </section>
-
-      <!-- 예산현황 -->
-      <section class="page" id="page-budget">
-        <div style="margin-bottom:12px"><span class="badge">샘플 데이터</span> <span class="muted">계정 × 부서 배정/집행/잔액 — 영림원+결재 연동 예정</span></div>
-        <div class="card">
-          <h3>계정과목별 예산 집행</h3>
-          <table class="bud-grid">
-            <thead><tr><th>계정과목</th><th class="num">배정</th><th class="num">집행</th><th class="num">잔액</th><th style="width:160px">집행률</th></tr></thead>
-            <tbody id="budRows"></tbody>
-          </table>
         </div>
       </section>
 
     </div>
   </div>
 </div>
+
+<!-- 문서 본문 모달 레이어 (여러 개 스택) -->
+<div id="modalLayer"></div>
 </div>
 
 <script>
@@ -312,71 +267,121 @@ function showApp(acct){
   document.getElementById("userName").textContent = nm;
   document.getElementById("userMail").textContent = acct.username;
   document.getElementById("avatar").textContent = (nm||"?").trim().slice(0,1);
-  initCharts(); initBudget();
+  initForms();
 }
 initAuth();
 
-/* ===== 탭 ===== */
-const titles = {summary:["요약","이번 달 지출 현황"],docs:["결재문서","다우오피스 결재문서 조회"],spend:["지출명세","지출결의서 명세 집계"],budget:["예산현황","계정·부서별 예산 집행"]};
+/* ===== 탭 (결재문서 단일) ===== */
 document.querySelectorAll(".nav-item").forEach(b=>b.onclick=()=>{
-  document.querySelectorAll(".nav-item").forEach(x=>x.classList.remove("on"));
-  b.classList.add("on");
-  const t=b.dataset.tab;
-  document.querySelectorAll(".page").forEach(p=>p.classList.remove("on"));
-  document.getElementById("page-"+t).classList.add("on");
-  document.getElementById("pageTitle").textContent=titles[t][0];
-  document.getElementById("pageSub").textContent=titles[t][1];
-  if(t==="docs" && !window._docsLoaded){ initForms(); }
+  if(!window._docsLoaded) initForms();
 });
 
 /* ===== 결재문서: do_portal 연동 ===== */
 async function initForms(){
   window._docsLoaded=true;
   await resolveServerEndpoint();
+  // 양식 드롭다운 동적 로딩
+  try{
+    const r=await fetch(`${PORTAL_BASE}/daou/api/forms`);
+    const forms=await r.json();
+    const sel=document.getElementById("formSel");
+    sel.innerHTML=forms.map(f=>`<option value="${esc(f.form)}">${esc(f.form)} (${f.n})</option>`).join('');
+    // 재무 핵심 양식을 기본 선택
+    const def=forms.find(f=>f.form==="지출결의서(엔젯)");
+    if(def) sel.value="지출결의서(엔젯)";
+  }catch(e){ console.warn("양식 목록 로딩 실패:", e.message); }
   loadDocs();
 }
 async function loadDocs(){
   const form=document.getElementById("formSel").value;
   const q=document.getElementById("q").value;
   const tb=document.getElementById("docRows");
-  tb.innerHTML='<tr><td colspan="5" class="empty-state"><span class="spin"></span> 불러오는 중…</td></tr>';
+  tb.innerHTML='<tr><td colspan="7" class="empty-state"><span class="spin"></span> 불러오는 중…</td></tr>';
   if(!PORTAL_BASE) await resolveServerEndpoint();
   try{
-    const r=await fetch(`${PORTAL_BASE}/daou/api/docs?limit=200&form=${encodeURIComponent(form)}&q=${encodeURIComponent(q)}`);
+    const r=await fetch(`${PORTAL_BASE}/daou/api/docs?limit=300&form=${encodeURIComponent(form)}&q=${encodeURIComponent(q)}`);
     const d=await r.json();
-    if(!d.length){ tb.innerHTML='<tr><td colspan="5" class="empty-state">문서가 없습니다</td></tr>'; return; }
-    tb.innerHTML=d.map(x=>`<tr onclick="openDoc('${x.docId}',this)">
-      <td>${x.기안일}</td><td>${esc(x.제목||'')}</td><td>${esc(x.기안자)}</td>
-      <td><span class="st ${x.상태}">${x.상태}</span></td>
+    if(!d.length){ tb.innerHTML='<tr><td colspan="7" class="empty-state">문서가 없습니다</td></tr>'; return; }
+    tb.innerHTML=d.map(x=>`<tr data-id="${esc(String(x.docId))}" data-title="${esc(x.제목||'')}">
+      <td>${(x.기안일||'').replace('T',' ').slice(0,16)}</td><td>${esc(form)}</td>
+      <td>${esc(x.제목||'')}</td><td>${esc(x.기안자||'')}</td><td>${esc(x.기안부서||'')}</td>
+      <td><span class="st ${x.상태}">${x.상태||''}</span></td>
       <td class="${x.cached?'dot-c':'dot-n'}">${x.cached?'●':'○'}</td></tr>`).join('');
+    tb.querySelectorAll("tr[data-id]").forEach(tr=>{
+      tr.onclick=()=>openDoc(tr.dataset.id, tr.dataset.title);
+    });
   }catch(e){
-    tb.innerHTML=`<tr><td colspan="5" class="empty-state">포털 연결 실패<br><span class="muted">${PORTAL_BASE} 서버가 켜져있는지, CORS 허용됐는지 확인</span></td></tr>`;
+    tb.innerHTML=`<tr><td colspan="7" class="empty-state">포털 연결 실패<br><span class="muted">${PORTAL_BASE} 서버 확인</span></td></tr>`;
   }
 }
-async function openDoc(id,row){
-  document.querySelectorAll("#docRows tr").forEach(r=>r.classList.remove("sel"));
-  if(row) row.classList.add("sel");
-  const box=document.getElementById("detail");
-  box.innerHTML='<div class="detail-empty"><span class="spin"></span> 조회 중…</div>';
-  try{
-    const r=await fetch(`${PORTAL_BASE}/daou/api/doc/${id}`); const m=await r.json();
-    const items=(m.items||[]).map(i=>`<tr><td>${esc(i.거래처||'')}</td><td>${esc(i.품명||'')}</td><td class="num">${esc(i.금액||'')}</td></tr>`).join('');
-    const line=(m.line||[]).filter(l=>l.name).map(l=>`${esc(l.name)}(${esc(l.status||'')})`).join(' → ');
-    const atts=(m.attaches||[]).map(f=>f.url
-      ?`<a href="${PORTAL_BASE}/daou/dl?u=${encodeURIComponent(f.url)}" target="_blank">📄 ${esc(f.name)} <span class="muted">${esc(f.size||'')}</span></a>`
-      :`📄 ${esc(f.name)}`).join('<br>');
-    box.innerHTML=`
-      <div class="detail-head">
-        <div><span class="docno">${esc(m.docNumber||id)}</span><span class="tag">${m._source}</span></div>
-        <div class="meta">${esc(m.drafter||'')} / ${esc(m.dept||'')} · ${esc(m.draftDate||'')}<br>
-        결재선: ${line||'-'}<br><b>합계: ${esc(m.total||'-')}</b></div>
-      </div>
-      ${items?`<div class="mini-tbl"><h4>명세</h4><table><thead><tr><th>거래처</th><th>품명</th><th class="num">금액</th></tr></thead><tbody>${items}</tbody></table></div>`:''}
-      ${atts?`<div class="atts"><b>첨부</b><br>${atts}</div>`:''}
-      <div class="detail-body"><iframe src="${PORTAL_BASE}/daou/body/${id}"></iframe></div>`;
-  }catch(e){ box.innerHTML='<div class="detail-empty">본문 조회 실패</div>'; }
+
+/* ===== 문서 본문 모달 (여러 개 스택, 드래그/리사이즈) ===== */
+let _zTop = 100000, _modalN = 0;
+function openDoc(id, title){
+  const layer = document.getElementById("modalLayer");
+  const off = (_modalN++ % 6) * 28;
+  const w = Math.min(980, window.innerWidth - 80);
+  const h = Math.min(760, window.innerHeight - 80);
+  const m = document.createElement("div");
+  m.className = "docmodal";
+  m.style.left = (window.innerWidth - w)/2 + off + "px";
+  m.style.top  = (window.innerHeight - h)/2 + off - 20 + "px";
+  m.style.width = w + "px"; m.style.height = h + "px";
+  m.style.zIndex = ++_zTop;
+  m.innerHTML = `
+    <div class="mbar">
+      <span class="mtit">${esc(title||id)}</span>
+      <span class="tag" data-src>…</span>
+      <button title="새 탭" data-open>↗</button>
+      <button title="닫기" data-close>✕</button>
+    </div>
+    <div class="mmeta" data-meta><span class="spin"></span> 조회 중…</div>
+    <div class="matts" data-atts style="display:none"></div>
+    <iframe data-frame></iframe>
+    <div class="mresize"></div>`;
+  layer.appendChild(m);
+
+  // 최상단으로 (클릭 시)
+  m.addEventListener("mousedown", ()=>{ m.style.zIndex = ++_zTop; });
+  // 닫기
+  m.querySelector("[data-close]").onclick = ()=> m.remove();
+  // 본문 즉시 로드 (iframe)
+  m.querySelector("[data-frame]").src = `${PORTAL_BASE}/daou/body/${id}`;
+  m.querySelector("[data-open]").onclick = ()=> window.open(`${PORTAL_BASE}/daou/body/${id}`,"_blank");
+
+  // 메타/첨부 비동기 로드
+  fetch(`${PORTAL_BASE}/daou/api/doc/${id}`).then(r=>r.json()).then(meta=>{
+    m.querySelector("[data-src]").textContent = meta._source||"";
+    const line=(meta.line||[]).filter(l=>l.name).map(l=>`${esc(l.name)}(${esc(l.status||'')})`).join(' → ');
+    m.querySelector("[data-meta]").innerHTML =
+      `<b>${esc(meta.docNumber||id)}</b> · ${esc(meta.drafter||'')} / ${esc(meta.dept||'')} · ${esc(meta.draftDate||'')}<br>`+
+      (line?`결재선: ${line}<br>`:'')+
+      (meta.total?`<b>합계: ${esc(meta.total)}</b>`:'');
+    const atts=(meta.attaches||[]).filter(f=>f.url).map(f=>
+      `<a href="${PORTAL_BASE}/daou/dl?u=${encodeURIComponent(f.url)}" target="_blank">📄 ${esc(f.name)}</a>`).join('');
+    if(atts){ const a=m.querySelector("[data-atts]"); a.style.display="block"; a.innerHTML=atts; }
+  }).catch(()=>{ m.querySelector("[data-meta]").textContent="(메타 조회 실패)"; });
+
+  // 드래그
+  const bar = m.querySelector(".mbar");
+  bar.addEventListener("mousedown", e=>{
+    if(e.target.tagName==="BUTTON") return;
+    const sx=e.clientX, sy=e.clientY, ol=m.offsetLeft, ot=m.offsetTop;
+    const mv=ev=>{ m.style.left=ol+ev.clientX-sx+"px"; m.style.top=Math.max(0,ot+ev.clientY-sy)+"px"; };
+    const up=()=>{document.removeEventListener("mousemove",mv);document.removeEventListener("mouseup",up);};
+    document.addEventListener("mousemove",mv);document.addEventListener("mouseup",up);
+  });
+  // 리사이즈
+  const rz = m.querySelector(".mresize");
+  rz.addEventListener("mousedown", e=>{
+    e.stopPropagation();
+    const sx=e.clientX, sy=e.clientY, ow=m.offsetWidth, oh=m.offsetHeight;
+    const mv=ev=>{ m.style.width=Math.max(360,ow+ev.clientX-sx)+"px"; m.style.height=Math.max(260,oh+ev.clientY-sy)+"px"; };
+    const up=()=>{document.removeEventListener("mousemove",mv);document.removeEventListener("mouseup",up);};
+    document.addEventListener("mousemove",mv);document.addEventListener("mouseup",up);
+  });
 }
-function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function esc(s){return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
 /* ===== 차트 (샘플) ===== */
 function initCharts(){
