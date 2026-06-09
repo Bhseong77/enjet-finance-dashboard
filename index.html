@@ -316,23 +316,26 @@ async function loadDocs(){
 }
 
 /* ===== 문서 본문 모달 (여러 개 스택, 드래그/리사이즈) ===== */
+const DAOU_BASE = "https://gw.enjet.co.kr";   // 원본 문서 URL 베이스
 let _zTop = 100000, _modalN = 0;
 function openDoc(id, title){
   const layer = document.getElementById("modalLayer");
-  const off = (_modalN++ % 6) * 28;
-  const w = Math.min(980, window.innerWidth - 80);
-  const h = Math.min(760, window.innerHeight - 80);
+  const off = (_modalN++ % 6) * 26;
+  const w = Math.min(1280, window.innerWidth - 40);
+  const h = Math.min(900, window.innerHeight - 40);
   const m = document.createElement("div");
   m.className = "docmodal";
-  m.style.left = (window.innerWidth - w)/2 + off + "px";
-  m.style.top  = (window.innerHeight - h)/2 + off - 20 + "px";
+  m.style.left = Math.max(10,(window.innerWidth - w)/2 + off) + "px";
+  m.style.top  = Math.max(10,(window.innerHeight - h)/2 + off - 16) + "px";
   m.style.width = w + "px"; m.style.height = h + "px";
   m.style.zIndex = ++_zTop;
+  const origin = `${DAOU_BASE}/app/approval/document/${id}`;
   m.innerHTML = `
     <div class="mbar">
       <span class="mtit">${esc(title||id)}</span>
       <span class="tag" data-src>…</span>
-      <button title="새 탭" data-open>↗</button>
+      <button title="원본 URL 복사" data-copy>🔗</button>
+      <button title="새 탭으로 본문" data-open>↗</button>
       <button title="닫기" data-close>✕</button>
     </div>
     <div class="mmeta" data-meta><span class="spin"></span> 조회 중…</div>
@@ -341,13 +344,19 @@ function openDoc(id, title){
     <div class="mresize"></div>`;
   layer.appendChild(m);
 
-  // 최상단으로 (클릭 시)
   m.addEventListener("mousedown", ()=>{ m.style.zIndex = ++_zTop; });
-  // 닫기
   m.querySelector("[data-close]").onclick = ()=> m.remove();
-  // 본문 즉시 로드 (iframe)
   m.querySelector("[data-frame]").src = `${PORTAL_BASE}/daou/body/${id}`;
   m.querySelector("[data-open]").onclick = ()=> window.open(`${PORTAL_BASE}/daou/body/${id}`,"_blank");
+  // 원본 URL 복사
+  const copyBtn = m.querySelector("[data-copy]");
+  copyBtn.onclick = (e)=>{
+    e.stopPropagation();
+    const done = ()=>{ const o=copyBtn.textContent; copyBtn.textContent="✅"; setTimeout(()=>copyBtn.textContent=o,1200); };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(origin).then(done).catch(()=>fallbackCopy(origin,done));
+    } else { fallbackCopy(origin, done); }
+  };
 
   // 메타/첨부 비동기 로드
   fetch(`${PORTAL_BASE}/daou/api/doc/${id}`).then(r=>r.json()).then(meta=>{
@@ -380,6 +389,13 @@ function openDoc(id, title){
     const up=()=>{document.removeEventListener("mousemove",mv);document.removeEventListener("mouseup",up);};
     document.addEventListener("mousemove",mv);document.addEventListener("mouseup",up);
   });
+}
+function fallbackCopy(text, done){
+  const ta=document.createElement("textarea");
+  ta.value=text; ta.style.position="fixed"; ta.style.opacity="0";
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand("copy"); if(done)done(); }catch(e){ prompt("원본 URL:", text); }
+  document.body.removeChild(ta);
 }
 function esc(s){return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
