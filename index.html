@@ -119,6 +119,11 @@ tbody tr.sel{background:var(--pd)}
 .docmodal .mbar button:hover{background:var(--border)}
 .docmodal .mmeta{padding:8px 14px;font-size:12px;color:var(--t2);border-bottom:1px solid var(--border);line-height:1.6;max-height:120px;overflow:auto}
 .docmodal .mmeta b{color:var(--t1)}
+.docmodal .mmeta .urlcopy{margin-top:8px;border:1px solid var(--p);background:var(--pd);color:var(--p);
+  font-weight:700;font-size:12px;padding:5px 12px;border-radius:7px;cursor:pointer;font-family:inherit}
+.docmodal .mmeta .urlcopy:hover{background:var(--p);color:#fff}
+.docmodal .mmeta .urlopen{margin-left:10px;font-size:12px;color:var(--p);text-decoration:none;font-weight:600}
+.docmodal .mmeta .urlopen:hover{text-decoration:underline}
 .docmodal .matts{padding:6px 14px;font-size:12px;border-bottom:1px solid var(--border)}
 .docmodal .matts a{color:var(--p);text-decoration:none;margin-right:12px}
 .docmodal .matts a:hover{text-decoration:underline}
@@ -334,7 +339,7 @@ function openDoc(id, title){
     <div class="mbar">
       <span class="mtit">${esc(title||id)}</span>
       <span class="tag" data-src>…</span>
-      <button title="원본 URL 복사" data-copy>🔗</button>
+      <button title="URL(다우오피스원문)복사" data-copy>🔗</button>
       <button title="새 탭으로 본문" data-open>↗</button>
       <button title="닫기" data-close>✕</button>
     </div>
@@ -348,15 +353,15 @@ function openDoc(id, title){
   m.querySelector("[data-close]").onclick = ()=> m.remove();
   m.querySelector("[data-frame]").src = `${PORTAL_BASE}/daou/body/${id}`;
   m.querySelector("[data-open]").onclick = ()=> window.open(`${PORTAL_BASE}/daou/body/${id}`,"_blank");
-  // 원본 URL 복사
-  const copyBtn = m.querySelector("[data-copy]");
-  copyBtn.onclick = (e)=>{
-    e.stopPropagation();
-    const done = ()=>{ const o=copyBtn.textContent; copyBtn.textContent="✅"; setTimeout(()=>copyBtn.textContent=o,1200); };
+  // 원본 URL 복사 (상단바 + 메타영역 둘 다)
+  const doCopy = (btn)=>{
+    const done = ()=>{ const o=btn.textContent; btn.textContent="✅ 복사됨"; setTimeout(()=>btn.textContent=o,1200); };
     if(navigator.clipboard && navigator.clipboard.writeText){
       navigator.clipboard.writeText(origin).then(done).catch(()=>fallbackCopy(origin,done));
     } else { fallbackCopy(origin, done); }
   };
+  const copyBtn = m.querySelector("[data-copy]");
+  copyBtn.onclick = (e)=>{ e.stopPropagation(); doCopy(copyBtn); };
 
   // 메타/첨부 비동기 로드
   fetch(`${PORTAL_BASE}/daou/api/doc/${id}`).then(r=>r.json()).then(meta=>{
@@ -365,7 +370,11 @@ function openDoc(id, title){
     m.querySelector("[data-meta]").innerHTML =
       `<b>${esc(meta.docNumber||id)}</b> · ${esc(meta.drafter||'')} / ${esc(meta.dept||'')} · ${esc(meta.draftDate||'')}<br>`+
       (line?`결재선: ${line}<br>`:'')+
-      (meta.total?`<b>합계: ${esc(meta.total)}</b>`:'');
+      (meta.total?`<b>합계: ${esc(meta.total)}</b><br>`:'')+
+      `<button class="urlcopy">🔗 원본 URL 복사</button>`+
+      `<a class="urlopen" href="${esc(origin)}" target="_blank">원본 열기 ↗</a>`;
+    const ub = m.querySelector(".urlcopy");
+    if(ub) ub.onclick = (e)=>{ e.stopPropagation(); doCopy(ub); };
     const atts=(meta.attaches||[]).filter(f=>f.url).map(f=>
       `<a href="${PORTAL_BASE}/daou/dl?u=${encodeURIComponent(f.url)}" target="_blank">📄 ${esc(f.name)}</a>`).join('');
     if(atts){ const a=m.querySelector("[data-atts]"); a.style.display="block"; a.innerHTML=atts; }
