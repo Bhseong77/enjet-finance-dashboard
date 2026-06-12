@@ -186,6 +186,7 @@ tbody tr.sel{background:var(--pd)}
           <select id="formSel"><option value="지출결의서(엔젯)">지출결의서(엔젯)</option></select>
           <input id="q" placeholder="제목 / 기안자 검색" onkeydown="if(event.key==='Enter')loadDocs()">
           <button class="btn" onclick="loadDocs()">조회</button>
+          <button class="btn" id="xlsBtn" onclick="exportXls()" title="결재선·첨부·관련문서 엑셀">📊 엑셀</button>
         </div>
         <div class="tablewrap full">
           <div class="tbl-scroll">
@@ -347,6 +348,26 @@ async function loadDocs(){
 
 /* ===== 문서 본문 모달 (여러 개 스택, 드래그/리사이즈) ===== */
 const DAOU_BASE = "https://gw.enjet.co.kr";   // 원본 문서 URL 베이스
+
+async function exportXls(){
+  const form=document.getElementById("formSel").value;
+  const btn=document.getElementById("xlsBtn");
+  const o=btn.textContent; btn.textContent="⏳ 수집중…"; btn.disabled=true;
+  if(!PORTAL_BASE) await resolveServerEndpoint(true);
+  try{
+    const url=`${PORTAL_BASE}/daou/api/export?form=${encodeURIComponent(form)}&limit=500&wait=1`;
+    const r=await fetch(url);
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const blob=await r.blob();
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=`${form}_${new Date().toISOString().slice(0,10)}.xlsx`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(a.href);
+  }catch(e){ alert("엑셀 생성 실패: "+e.message+"\\n(미캐시 문서가 많으면 시간이 걸려. 먼저 조회로 예열 후 다시 시도)"); }
+  finally{ btn.textContent=o; btn.disabled=false; }
+}
+
 let _zTop = 100000, _modalN = 0;
 function openDoc(id, title){
   const layer = document.getElementById("modalLayer");
